@@ -1049,6 +1049,12 @@ INDEX(analysis_id, policy_version_id)
 
 Historical reference tidak berubah walaupun policy version berikutnya diaktifkan.
 
+Lifecycle rule:
+
+- refs are persisted for COMPLETED analyses;
+- refs are also persisted for FAILED analyses when a schema-valid candidate existed and verifier returned FAIL;
+- malformed/unvalidated output must not create fabricated refs.
+
 ---
 
 # 18. `analysis_evidence_refs`
@@ -1086,6 +1092,8 @@ Constraint:
 ```text
 UNIQUE(analysis_id, evidence_id, usage_type)
 ```
+
+Evidence-ref lifecycle follows the same rule as policy refs: preserve provenance for COMPLETED and verifier-FAILED schema-valid analyses; do not fabricate refs from invalid/unvalidated output.
 
 Indexes:
 
