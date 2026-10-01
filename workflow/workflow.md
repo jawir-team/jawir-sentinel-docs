@@ -413,7 +413,21 @@ Case tidak otomatis melanjutkan workflow sampai human intervention dilakukan.
 | EXECUTION | EXECUTION_BLOCKED | AI_ANALYSIS |
 | EXECUTION | EXECUTION_FAILED | AI_ANALYSIS |
 
-`CLOSE` mengikuti authorization dan state rule yang divalidasi backend.
+CLOSE dapat dilakukan oleh active workflow participant dengan role `MAKER`, `CHECKER`, `SIGNER`, atau `EXECUTER`.
+
+Allowed source state:
+
+```text
+DRAFT
+SUBMITTED
+AI_ANALYSIS
+CHECKING
+SIGNING
+EXECUTION
+ESCALATION_REQUIRED
+```
+
+`DONE` dan `CLOSED` tidak dapat di-close kembali.
 
 ---
 
@@ -1076,6 +1090,31 @@ AI tidak mengubah policy authority berdasarkan reviewer opinion.
 
 `CLOSED` digunakan ketika workflow tidak perlu dilanjutkan.
 
+Semua active workflow participant pada case dapat melakukan close:
+
+```text
+MAKER
+CHECKER
+SIGNER
+EXECUTER
+```
+
+Allowed source state:
+
+```text
+DRAFT
+SUBMITTED
+AI_ANALYSIS
+CHECKING
+SIGNING
+EXECUTION
+ESCALATION_REQUIRED
+```
+
+`DONE` dan `CLOSED` tidak dapat di-close kembali.
+
+Close reason wajib berupa penjelasan non-empty mengenai alasan workflow dihentikan.
+
 Required data:
 
 ```text
@@ -1093,15 +1132,33 @@ Resolved externally
 No action required
 ```
 
+Close mutation harus menggunakan current-state validation dan row locking.
+
+Audit `CASE_CLOSED` minimal menyimpan:
+
+```text
+actor_id
+actor_role
+previous_status
+close_reason
+closed_at
+```
+
 Close event:
 
 ```text
+Validate Active Participant
+↓
+Validate Non-Terminal State
+↓
 Persist Close Reason
 ↓
 Audit CASE_CLOSED
 ↓
 case → CLOSED
 ```
+
+Setelah case menjadi `CLOSED`, asynchronous AI completion atau business action lain tidak boleh membuka atau memindahkan state case kembali. Analysis/execution record yang sudah terbentuk tetap dipertahankan sebagai historical record dan tidak otomatis diubah menjadi successful result.
 
 `CLOSED` bukan execution success.
 
