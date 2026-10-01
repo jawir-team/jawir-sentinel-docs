@@ -1,12 +1,12 @@
-# JAWIR Sentinel Workflow
+# Workflow JAWIR Sentinel
 
-**Specification Version:** 1.0  
+**Versi Spesifikasi:** 1.0  
 **Status:** MVP Baseline  
-**Repository Path:** `jawir-sentinel-docs/workflow/workflow.md`
+**Path Repository:** `jawir-sentinel-docs/workflow/workflow.md`
 
 Dokumen ini mendefinisikan workflow resmi JAWIR Sentinel untuk MVP.
 
-Workflow ini menjadi contract bersama antara:
+Workflow ini menjadi kontrak bersama antara:
 
 ```text
 jawir-sentinel-fe
@@ -14,15 +14,15 @@ jawir-sentinel-be
 jawir-sentinel-docs
 ```
 
-Backend adalah source of truth untuk state transition dan workflow validation.
+Backend adalah sumber kebenaran untuk transisi state dan validasi workflow.
 
-Frontend hanya mempresentasikan state dan mengirim business action.
+Frontend hanya menampilkan state dan mengirim aksi bisnis.
 
-AI tidak memiliki authority untuk mengubah workflow state.
+AI tidak memiliki kewenangan untuk mengubah workflow state.
 
 ---
 
-# 1. Workflow Objective
+# 1. Tujuan Workflow
 
 JAWIR Sentinel menggunakan governed decision workflow untuk memastikan operational case:
 
@@ -36,11 +36,11 @@ JAWIR Sentinel menggunakan governed decision workflow untuk memastikan operation
 
 Prinsip utama:
 
-> **AI assists the decision. Humans remain accountable for the decision.**
+> **AI membantu proses pengambilan keputusan. Manusia tetap bertanggung jawab atas keputusan.**
 
 ---
 
-# 2. Workflow Roles
+# 2. Role Workflow
 
 Role ditentukan **per case**.
 
@@ -136,9 +136,9 @@ case → AI_ANALYSIS
 
 ---
 
-# 3. Segregation of Duties
+# 3. Segregation of Duties (SoD)
 
-MVP rules:
+Aturan MVP:
 
 ```text
 Maker ≠ Checker
@@ -151,13 +151,13 @@ Checker ≠ Executer
 Signer ≠ Executer
 ```
 
-Rules divalidasi oleh backend.
+Aturan divalidasi oleh backend.
 
-Frontend dapat membantu mencegah invalid assignment pada UI, tetapi backend tetap menjadi authority.
+Frontend dapat membantu mencegah assignment yang tidak valid di UI, tetapi backend tetap menjadi authority final.
 
-## 3.1 Participant Cardinality
+## 3.1 Kardinalitas Participant
 
-Participant contract per case:
+Kontrak participant per case:
 
 ```text
 MAKER
@@ -178,7 +178,7 @@ exactly 1 active before submit
 
 Setiap active participant user hanya boleh memegang **satu** workflow role pada sebuah case. ADMIN adalah system role dan bukan participant role.
 
-## 3.2 Governance Snapshot / Submission Freeze Rule
+## 3.2 Snapshot Governance / Aturan Freeze saat Submit
 
 Selama `DRAFT`:
 
@@ -233,7 +233,7 @@ New case dapat menambahkan `REFERENCE` evidence yang merujuk case lama bila dibu
 
 ---
 
-# 4. Main Workflow
+# 4. Workflow Utama
 
 ```text
 ┌──────────────┐
@@ -273,7 +273,7 @@ New case dapat menambahkan `REFERENCE` evidence yang merujuk case lama bila dibu
 
 ---
 
-# 5. Case States
+# 5. State Case
 
 Case memiliki state berikut:
 
@@ -291,13 +291,13 @@ ESCALATION_REQUIRED
 
 ---
 
-# 6. State Definition
+# 6. Definisi State
 
 ## 6.1 DRAFT
 
 Case masih dapat diedit oleh Maker.
 
-Allowed activity:
+Aktivitas yang diizinkan:
 
 ```text
 Edit case
@@ -318,7 +318,7 @@ Case telah berhasil disubmit.
 
 State ini bersifat transisi internal sebelum AI analysis dimulai.
 
-Normal flow:
+Alur normal:
 
 ```text
 SUBMITTED
@@ -400,7 +400,7 @@ Current analysis telah mendapat authorization dari Signer.
 
 Assigned Executer melakukan action.
 
-Result:
+Hasil:
 
 ```text
 SUCCESS
@@ -471,7 +471,7 @@ REANALYSIS_LIMIT_REACHED
 
 `POLICY_CONFLICT` bukan standalone workflow trigger. Policy conflict dapat berkontribusi pada verifier `FAIL`, dan escalation terjadi melalui `VERIFIER_FAIL`.
 
-Allowed activity:
+Aktivitas yang diizinkan:
 
 ```text
 View case
@@ -481,7 +481,7 @@ Add evidence
 Close case
 ```
 
-Not allowed:
+Aktivitas yang tidak diizinkan:
 
 ```text
 Approve
@@ -499,7 +499,7 @@ MVP tidak memiliki resume/reopen dari `ESCALATION_REQUIRED`. Jika masalah perlu 
 
 ---
 
-# 7. State Transition Table
+# 7. Tabel Transisi State
 
 | Current State | Event | Next State |
 |---|---|---|
@@ -534,7 +534,7 @@ ESCALATION_REQUIRED
 
 ---
 
-# 8. Workflow Event Catalog
+# 8. Katalog Event Workflow
 
 ```text
 SUBMIT
@@ -562,7 +562,7 @@ Backend memetakan business action ke workflow event.
 
 ---
 
-# 9. Submit Flow
+# 9. Alur Submit
 
 ```text
 Maker
@@ -605,7 +605,7 @@ Business state dan enqueue intent tidak dapat terpisah karena keduanya ditulis d
 
 ---
 
-# 10. AI Analysis Flow
+# 10. Alur Analisis AI
 
 Queue contract:
 
@@ -615,7 +615,7 @@ ai_analyses.status = GENERATING
 outbox_events = PENDING/PUBLISHED
 ```
 
-Worker receives exact `analysis_id`.
+Worker menerima `analysis_id` yang tepat.
 
 ```text
 RabbitMQ Delivery
@@ -640,11 +640,11 @@ Validate Structured Output
 Gemini Verifier
 ```
 
-PASS/PASS_WITH_WARNING finalizes to `COMPLETED → CHECKING`.
+PASS/PASS_WITH_WARNING difinalisasi menjadi `COMPLETED → CHECKING`.
 
-Verifier FAIL or exhausted technical retries finalize to `FAILED → ESCALATION_REQUIRED`.
+Verifier FAIL atau technical retry yang habis difinalisasi menjadi `FAILED → ESCALATION_REQUIRED`.
 
-RabbitMQ message is acknowledged only after durable finalization.
+Message RabbitMQ baru di-ACK setelah finalisasi durable berhasil.
 
 Worker claim safety:
 
@@ -660,19 +660,19 @@ redelivered message or stale lease
 → previous worker loses finalization authority
 ```
 
-Finalization must match the current `worker_attempt_id`. Duplicate/redelivered messages cannot create another analysis version or overwrite a newer claim/finalized analysis.
+Finalisasi wajib cocok dengan `worker_attempt_id` saat ini. Duplicate/redelivered message tidak boleh membuat analysis version baru atau menimpa claim/finalized analysis yang lebih baru.
 
 ---
 
-# 11. Checker Flow
+# 11. Alur Checker
 
-Initial state:
+State awal:
 
 ```text
 CHECKING
 ```
 
-A Checker decision is always tied to:
+Setiap decision Checker selalu terikat pada:
 
 ```text
 analysis_id
@@ -680,7 +680,7 @@ analysis_id
 
 ## 11.1 Checker Approve
 
-Preconditions:
+Prasyarat:
 
 ```text
 case.status = CHECKING
@@ -689,7 +689,7 @@ analysis_id = case.current_analysis_id
 actor has not decided on current analysis
 ```
 
-Flow:
+Alur:
 
 ```text
 Insert APPROVE Decision
@@ -699,13 +699,13 @@ Audit CHECKER_APPROVED
 Check Required Checker Completion
 ```
 
-If not all required Checker approved:
+Jika belum semua required Checker approve:
 
 ```text
 Remain CHECKING
 ```
 
-If all required Checker approved:
+Jika semua required Checker sudah approve:
 
 ```text
 Audit / Apply ALL_CHECKERS_APPROVED
@@ -717,7 +717,7 @@ CHECKING → SIGNING
 
 ## 11.2 Checker Reject
 
-Preconditions:
+Prasyarat:
 
 ```text
 case.status = CHECKING
@@ -726,7 +726,7 @@ analysis_id = case.current_analysis_id
 reason provided
 ```
 
-Flow:
+Alur:
 
 ```text
 Insert REJECT Decision
@@ -755,17 +755,17 @@ if quota exhausted:
   Do not trigger AI
 ```
 
-A reject dari satu Checker langsung menghentikan current checking round.
+Reject dari satu Checker langsung menghentikan checking round saat ini.
 
-Checker lain tidak perlu melanjutkan approval terhadap analysis version yang sudah rejected.
+Checker lain tidak perlu melanjutkan approval pada analysis version yang sudah di-reject.
 
 ---
 
-# 12. Checker Round Rule
+# 12. Aturan Round Checker
 
 Checker decisions berlaku hanya untuk satu analysis version.
 
-Example:
+Contoh:
 
 ```text
 Analysis v1
@@ -773,7 +773,7 @@ Analysis v1
 └── Dev Checker REJECTED
 ```
 
-Result:
+Hasil:
 
 ```text
 Analysis v1 review round ends
@@ -796,15 +796,15 @@ Semua required Checker harus mereview analysis v2 kembali.
 
 ---
 
-# 13. Signer Flow
+# 13. Alur Signer
 
-Initial state:
+State awal:
 
 ```text
 SIGNING
 ```
 
-Preconditions:
+Prasyarat:
 
 ```text
 actor assigned as SIGNER
@@ -816,7 +816,7 @@ all required Checker approved current analysis
 
 ## 13.1 Signer Approve
 
-Flow:
+Alur:
 
 ```text
 Insert APPROVE Decision
@@ -843,7 +843,7 @@ recommendation
 timestamp
 ```
 
-Result:
+Hasil:
 
 ```text
 case.status = EXECUTION
@@ -853,7 +853,7 @@ case.status = EXECUTION
 
 ## 13.2 Signer Reject
 
-Flow:
+Alur:
 
 ```text
 Insert REJECT Decision
@@ -890,15 +890,15 @@ Workflow harus melewati Checker lagi sebelum kembali ke Signer.
 
 ---
 
-# 14. Execution Flow
+# 14. Alur Execution
 
-Initial state:
+State awal:
 
 ```text
 EXECUTION
 ```
 
-Preconditions:
+Prasyarat:
 
 ```text
 actor assigned as EXECUTER
@@ -916,9 +916,9 @@ Audit EXECUTION_STARTED
 
 ---
 
-# 15. Execution Success
+# 15. Execution Berhasil
 
-Flow:
+Alur:
 
 ```text
 Execution IN_PROGRESS
@@ -935,7 +935,7 @@ EXECUTION → DONE
 Audit CASE_DONE
 ```
 
-Result:
+Hasil:
 
 ```text
 case.status = DONE
@@ -943,7 +943,7 @@ case.status = DONE
 
 ---
 
-# 16. Execution Blocked
+# 16. Execution Terblokir
 
 `BLOCKED` berarti action belum dapat dilakukan.
 
@@ -956,7 +956,7 @@ Required system access unavailable
 External party not ready
 ```
 
-Flow:
+Alur:
 
 ```text
 Execution IN_PROGRESS
@@ -990,11 +990,11 @@ Execution blocker menjadi evidence untuk analysis version berikutnya.
 
 ---
 
-# 17. Execution Failed
+# 17. Execution Gagal
 
 `FAILED` berarti action sudah dicoba tetapi tidak berhasil.
 
-Flow:
+Alur:
 
 ```text
 Execution IN_PROGRESS
@@ -1028,7 +1028,7 @@ if quota exhausted:
 
 ---
 
-# 18. Re-analysis Flow
+# 18. Alur Re-analysis
 
 Governed triggers:
 
@@ -1039,7 +1039,7 @@ EXECUTION_BLOCKED
 EXECUTION_FAILED
 ```
 
-Within the **same business transaction** as the triggering action:
+Di dalam **business transaction yang sama** dengan action pemicu:
 
 ```text
 persist feedback/result/evidence
@@ -1049,7 +1049,7 @@ business event → AI_ANALYSIS
 check MAX_REANALYSIS
 ```
 
-If quota available:
+Jika quota tersedia:
 
 ```text
 allocate next Analysis = GENERATING
@@ -1063,7 +1063,7 @@ COMMIT
 worker eventually consumes via RabbitMQ
 ```
 
-If quota exhausted:
+Jika quota habis:
 
 ```text
 Audit REANALYSIS_LIMIT_REACHED
@@ -1077,15 +1077,15 @@ no outbox row
 no AI call
 ```
 
-New analysis reloads current evidence and current applicable ACTIVE + READY policy.
+Analysis baru memuat ulang evidence saat ini dan policy ACTIVE + READY yang berlaku.
 
 Technical RabbitMQ redelivery or provider retry does not allocate another business analysis version and does not consume `MAX_REANALYSIS`.
 
 ---
 
-# 19. Analysis Version Rule
+# 19. Aturan Version Analysis
 
-Example:
+Contoh:
 
 ```text
 Analysis v1
@@ -1118,7 +1118,7 @@ with verification PASS or PASS_WITH_WARNING
 that became eligible for human review
 ```
 
-Failed analysis attempt tidak pernah mengganti `current_analysis_id`.
+Analysis attempt yang FAILED tidak pernah mengganti `current_analysis_id`.
 
 Karena itu pada `ESCALATION_REQUIRED` dapat terjadi:
 
@@ -1127,11 +1127,11 @@ current_analysis_id = v1 COMPLETED
 latest analysis attempt = v2 FAILED
 ```
 
-Latest attempt ditentukan dari highest persisted `ai_analyses.version`, bukan dari `current_analysis_id`.
+Latest attempt ditentukan dari `ai_analyses.version` tertinggi yang tersimpan, bukan dari `current_analysis_id`.
 
 ---
 
-# 20. Stale Analysis Rule
+# 20. Aturan Stale Analysis
 
 Decision request harus membawa:
 
@@ -1167,7 +1167,7 @@ Approval tidak boleh di-retry otomatis.
 
 ---
 
-# 21. Concurrent Decision Rule
+# 21. Aturan Concurrent Decision
 
 Contoh:
 
@@ -1199,7 +1199,7 @@ current analysis   = v3
 
 ---
 
-# 22. Approval Validity Rule
+# 22. Aturan Validitas Approval
 
 Approval valid hanya jika:
 
@@ -1211,7 +1211,7 @@ Decision dari analysis lama tetap disimpan untuk audit tetapi tidak memiliki aut
 
 ---
 
-# 23. Policy Change During Workflow
+# 23. Perubahan Policy Selama Workflow
 
 Analysis menyimpan exact policy version yang digunakan.
 
@@ -1231,7 +1231,7 @@ Current policy version tidak mengganti reference pada historical analysis.
 
 ---
 
-# 24. Evidence Rule
+# 24. Aturan Evidence
 
 Evidence dapat berasal dari:
 
@@ -1254,7 +1254,7 @@ REFERENCE
 EXECUTION_RESULT
 ```
 
-## 24.1 User Evidence Authorization
+## 24.1 Otorisasi User Evidence
 
 User-created evidence hanya dapat ditambahkan oleh active participant pada state berikut:
 
@@ -1290,7 +1290,7 @@ Rationale:
 - `AI_ANALYSIS` menjaga analysis context tidak berubah ketika AI cycle sedang berjalan;
 - `DONE` dan `CLOSED` adalah terminal/read-only state.
 
-## 24.2 Evidence Actor Derivation
+## 24.2 Derivasi Actor Evidence
 
 Strict SoD ensures one active workflow role per user on a case.
 
@@ -1307,7 +1307,7 @@ If the authenticated user has no active participant assignment for the case, evi
 
 `SYSTEM` evidence hanya dapat dibuat oleh internal backend process dan tidak dapat dipilih melalui user-facing evidence endpoint.
 
-## 24.3 Evidence Effect on Workflow
+## 24.3 Dampak Evidence terhadap Workflow
 
 Evidence lama tidak dihapus dari historical decision context.
 
@@ -1326,7 +1326,7 @@ Pada `ESCALATION_REQUIRED`, evidence dapat ditambahkan untuk audit/manual invest
 
 ---
 
-# 25. Reviewer Feedback Rule
+# 25. Aturan Reviewer Feedback
 
 Reviewer feedback adalah context/evidence.
 
@@ -1348,7 +1348,7 @@ AI tidak mengubah policy authority berdasarkan reviewer opinion.
 
 ---
 
-# 26. Close Flow
+# 26. Alur Close
 
 `CLOSED` digunakan ketika workflow tidak perlu dilanjutkan.
 
@@ -1445,7 +1445,7 @@ Jika case perlu mengganti participant setelah submission, case lama harus di-clo
 
 ---
 
-# 27. DONE vs CLOSED
+# 27. Perbedaan DONE dan CLOSED
 
 ## DONE
 
@@ -1463,7 +1463,7 @@ Keduanya harus tampil berbeda di UI dan audit history.
 
 ---
 
-# 28. Escalation Flow
+# 28. Alur Escalation
 
 Automatic business re-analysis limit:
 
@@ -1559,7 +1559,7 @@ MVP tidak memiliki standalone escalation event untuk policy conflict atau generi
 
 ---
 
-# 29. AI Authority Boundary
+# 29. Batas Kewenangan AI
 
 AI boleh:
 
@@ -1592,7 +1592,7 @@ Delete Audit History
 
 ---
 
-# 30. Backend Authority Boundary
+# 30. Batas Kewenangan Backend
 
 Backend bertanggung jawab atas:
 
@@ -1611,7 +1611,7 @@ Audit Persistence
 
 ---
 
-# 31. Frontend Responsibility
+# 31. Tanggung Jawab Frontend
 
 Frontend bertanggung jawab untuk:
 
@@ -1628,7 +1628,7 @@ Frontend tidak menghitung next state secara authoritative.
 
 ---
 
-# 32. Audit Events
+# 32. Event Audit
 
 Workflow-related audit event:
 
@@ -1671,7 +1671,7 @@ Audit event bersifat append-only pada application layer.
 
 ---
 
-# 33. Transaction Boundaries
+# 33. Batas Transaction
 
 Critical workflow mutation harus atomic.
 
@@ -1702,7 +1702,7 @@ RabbitMQ and Vertex network calls are never executed inside the business transac
 
 ---
 
-# 34. Full Happy Path
+# 34. Happy Path Lengkap
 
 ```text
 DRAFT
@@ -1734,7 +1734,7 @@ DONE
 
 ---
 
-# 35. Checker Reject Path
+# 35. Alur Checker Reject
 
 ```text
 AI_ANALYSIS
@@ -1754,7 +1754,7 @@ CHECKING
 
 ---
 
-# 36. Signer Reject Path
+# 36. Alur Signer Reject
 
 ```text
 CHECKING
@@ -1778,7 +1778,7 @@ SIGNING
 
 ---
 
-# 37. Execution Blocked Path
+# 37. Alur Execution Blocked
 
 ```text
 SIGNING
@@ -1806,7 +1806,7 @@ EXECUTION
 
 ---
 
-# 38. MVP Demo Workflow
+# 38. Workflow Demo MVP
 
 MVP demo menggunakan flow berikut:
 
@@ -1867,7 +1867,7 @@ Audit History
 
 ---
 
-# 39. Workflow Invariants
+# 39. Invariant Workflow
 
 Invariant berikut harus selalu benar:
 
@@ -1903,7 +1903,7 @@ Invariant berikut harus selalu benar:
 
 ---
 
-# 40. Related Documents
+# 40. Dokumen Terkait
 
 API contract:
 
@@ -1928,7 +1928,7 @@ Dokumen ini menjadi source of truth untuk workflow behavior JAWIR Sentinel MVP.
 
 ---
 
-# 41. User Deactivation Safety
+# 41. Keamanan Penonaktifan User
 
 Because participant assignments are frozen after submit, an ACTIVE participant on a non-terminal case must remain an ACTIVE Sentinel user.
 
