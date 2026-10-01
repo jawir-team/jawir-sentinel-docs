@@ -88,7 +88,7 @@ Vertex AI
 RabbitMQ broker
 ```
 
-PostgreSQL remains workflow truth. RabbitMQ transports work; it never becomes workflow authority.
+PostgreSQL tetap menjadi workflow truth. RabbitMQ hanya membawa pekerjaan dan tidak pernah menjadi workflow authority.
 
 ---
 
@@ -167,7 +167,7 @@ business transaction
 → ACK only after durable finalization
 ```
 
-Rabbit delivery is at-least-once. Consumer/finalization logic must therefore be idempotent.
+Delivery RabbitMQ bersifat at-least-once. Karena itu logic consumer/finalization harus idempotent.
 
 ---
 
@@ -240,18 +240,18 @@ Cloud Run Worker Pool
                         Vertex AI Gemini
 ```
 
-The backend repository produces one container image with two runtime modes:
+Backend repository menghasilkan satu container image dengan dua runtime mode:
 
 ```text
 server  → sentinel-api
 worker  → sentinel-worker
 ```
 
-This is not a microservice split of business ownership. Both modes share the same domain, repository, workflow, and database contracts.
+Ini bukan pemisahan microservice atas business ownership. Kedua mode menggunakan domain, repository, workflow, dan kontrak database yang sama.
 
-RabbitMQ production topology must use durable queues and a fault-tolerant broker/cluster. The application receives broker connectivity through `RABBITMQ_URL`; broker hosting is environment-specific.
+Topology RabbitMQ production wajib memakai durable queue dan broker/cluster yang fault-tolerant. Aplikasi menerima koneksi broker melalui `RABBITMQ_URL`; hosting broker mengikuti environment.
 
-Local development may run RabbitMQ through Docker Compose.
+Development lokal dapat menjalankan RabbitMQ melalui Docker Compose.
 
 Authentication:
 
@@ -300,7 +300,7 @@ API Service
 Backend API
 ```
 
-Frontend responsibilities:
+Tanggung jawab frontend:
 
 ```text
 Navigation
@@ -368,7 +368,7 @@ sentinel-worker
 → finalizes analysis
 ```
 
-Business authority remains in shared application/domain services and PostgreSQL.
+Business authority tetap berada pada shared application/domain service dan PostgreSQL.
 
 ---
 
@@ -463,7 +463,7 @@ internal/workflow/
 └── transition.go
 ```
 
-Flow:
+Alur:
 
 ```text
 Business Action
@@ -552,7 +552,7 @@ Identity provider:
 Firebase Authentication
 ```
 
-Flow:
+Alur:
 
 ```text
 User Login
@@ -580,7 +580,7 @@ Backend authorization tidak bergantung pada frontend state.
 
 # 12. Arsitektur Authorization
 
-Sentinel separates **system role** from **case workflow role**.
+Sentinel memisahkan **system role** dari **case workflow role**.
 
 System role:
 
@@ -636,7 +636,7 @@ Current Analysis Version
 Segregation of Duties
 ```
 
-Example:
+Contoh:
 
 ```text
 Checker Approve Request
@@ -710,9 +710,9 @@ with PASS / PASS_WITH_WARNING verification
 that became eligible for human review
 ```
 
-A newer FAILED analysis may exist while `current_analysis_id` still points to the previous successful analysis, or remains NULL if no analysis has ever completed successfully.
+Analysis FAILED yang lebih baru dapat ada sementara `current_analysis_id` masih menunjuk analysis berhasil sebelumnya, atau tetap NULL jika belum pernah ada analysis yang selesai dengan sukses.
 
-Latest attempt is derived from the highest persisted `ai_analyses.version`.
+Attempt terbaru ditentukan dari `ai_analyses.version` tertinggi yang tersimpan.
 
 Data ini dapat berubah sesuai workflow.
 
@@ -785,7 +785,7 @@ Embedding contract remains independent from RabbitMQ transport.
 
 # 17. AI Context Builder
 
-Context Builder creates the exact decision context for one persisted analysis version.
+Context Builder membentuk decision context yang tepat untuk satu analysis version yang tersimpan.
 
 Inputs:
 
@@ -817,11 +817,11 @@ image/jpeg
 image/png
 ```
 
-No custom OCR/extraction pipeline is required for those supported evidence files. Unsupported MIME types are rejected by the file-evidence flow rather than silently omitted from AI context.
+Tidak diperlukan custom OCR/extraction pipeline untuk file evidence yang didukung. MIME yang tidak didukung ditolak oleh file-evidence flow, bukan diam-diam dihilangkan dari AI context.
 
-All evidence/file content is untrusted **data**, never system instruction.
+Seluruh content evidence/file diperlakukan sebagai **data** yang tidak dipercaya, bukan system instruction.
 
-Context Builder preserves provenance IDs so generated facts/recommendations can reference exact policy/evidence sources.
+Context Builder mempertahankan provenance ID agar facts/recommendations yang dihasilkan dapat merujuk source policy/evidence yang tepat.
 
 ---
 
@@ -844,7 +844,7 @@ policy chunk → gemini-embedding-001 / RETRIEVAL_DOCUMENT / 768
 query        → gemini-embedding-001 / RETRIEVAL_QUERY    / 768
 ```
 
-Flow:
+Alur:
 
 ```text
 Case / Retrieval Context
@@ -913,7 +913,7 @@ Reviewer feedback bukan policy authority.
 
 # 19. Arsitektur Policy Ingestion
 
-Policy creation and activation:
+Pembuatan dan aktivasi policy:
 
 ```text
 Create Policy
@@ -953,7 +953,7 @@ target DRAFT → ACTIVE
 Ready for Retrieval
 ```
 
-If chunking or embedding fails for the currently claimed attempt:
+Jika chunking atau embedding gagal pada attempt yang sedang memegang claim:
 
 ```text
 target.status       = DRAFT
@@ -978,13 +978,13 @@ PROCESSING + lease stale
 → re-index
 ```
 
-Every READY/FAILED write must compare the expected `index_attempt_id`. A late worker from an older attempt cannot overwrite a newer claim.
+Setiap write READY/FAILED wajib membandingkan expected `index_attempt_id`. Worker terlambat dari attempt lama tidak boleh menimpa claim yang lebih baru.
 
-Final activation re-validates that the target is still `DRAFT + READY` and effective **at transaction time** before superseding the old ACTIVE version.
+Aktivasi final memvalidasi ulang bahwa target masih `DRAFT + READY` dan effective **saat transaction berjalan** sebelum men-supercede ACTIVE version lama.
 
-Future-effective or expired versions cannot be activated in MVP. There is no scheduled activation service.
+Version yang effective di masa depan atau sudah expired tidak dapat diaktifkan pada MVP. Tidak ada scheduled activation service.
 
-External embedding requests are never executed inside the final policy activation transaction.
+External embedding request tidak pernah dijalankan di dalam final policy activation transaction.
 
 MVP chunking contract:
 
@@ -1020,7 +1020,7 @@ Generate embeddings
 Insert replacement chunks
 ```
 
-Historical old version:
+Version lama historis:
 
 ```text
 ACTIVE
@@ -1124,9 +1124,9 @@ finalization transaction
 → RabbitMQ ACK
 ```
 
-If finalization fails before commit, the worker does not ACK; RabbitMQ may redeliver.
+Jika finalisasi gagal sebelum commit, worker tidak melakukan ACK; RabbitMQ dapat melakukan redelivery.
 
-Every worker-owned DB mutation must validate the current `worker_attempt_id`, including `technical_retry_count` increments and finalization. A late superseded worker may finish an external model call, but it cannot consume retry budget, write analysis results, or transition workflow state.
+Setiap DB mutation milik worker wajib memvalidasi `worker_attempt_id` saat ini, termasuk increment `technical_retry_count` dan finalisasi. Superseded worker yang terlambat boleh menyelesaikan external model call, tetapi tidak boleh mengonsumsi retry budget, menulis hasil analysis, atau mengubah workflow state.
 
 `AI_WORKER_LEASE_SECONDS` controls stale worker-claim recovery. `technical_retry_count` remains persisted on the analysis and is never reset by redelivery/reclaim.
 
@@ -1178,9 +1178,9 @@ Execution Blocked
 Execution Failed
 ```
 
-MVP intentionally has no generic/manual re-analysis command. A new evidence record by itself does not create a new analysis version. The workflow must reach re-analysis through one of the governed business events above.
+MVP sengaja tidak memiliki command re-analysis generic/manual. Evidence baru saja tidak otomatis membuat analysis version baru. Workflow hanya dapat masuk re-analysis melalui governed business event yang sudah ditentukan.
 
-Flow when quota is available:
+Alur ketika quota tersedia:
 
 ```text
 Governed reject/block/fail business transaction
@@ -1210,7 +1210,7 @@ Finalize exact analysis
 CHECKING on success
 ```
 
-If quota is exhausted, the triggering business action is persisted and the case enters `ESCALATION_REQUIRED` without creating an analysis/outbox row.
+Jika quota habis, business action pemicu tetap dipersist dan case masuk `ESCALATION_REQUIRED` tanpa membuat analysis/outbox row.
 
 MVP re-analysis semantics:
 
@@ -1274,7 +1274,7 @@ Prevent race on current_analysis_id
 Prevent participant-assignment vs user-deactivation race
 ```
 
-Participant assignment and ACTIVE→INACTIVE user mutation must serialize on the target user row (or equivalent transaction lock) so an INACTIVE user can never become an active case participant.
+Participant assignment dan mutation user ACTIVE→INACTIVE wajib terserialisasi pada target user row (atau transaction lock setara) agar user INACTIVE tidak pernah menjadi active case participant.
 
 ---
 
@@ -1312,7 +1312,7 @@ Require Human Re-review
 
 # 25. Arsitektur Transaction
 
-Critical workflow mutation and AI job creation are atomic through the transactional outbox.
+Mutation workflow kritis dan pembuatan AI job bersifat atomic melalui transactional outbox.
 
 Initial submit example:
 
@@ -1355,9 +1355,9 @@ if quota exhausted:
 COMMIT
 ```
 
-No HTTP request performs Vertex calls after the transaction. Durable outbox guarantees the intent survives API/process failure.
+HTTP request tidak menjalankan Vertex call setelah transaction. Durable outbox memastikan intent tetap ada meskipun API/process gagal.
 
-Outbox delivery is at-least-once. Duplicate RabbitMQ deliveries are safe because worker finalization validates exact `analysis_id`, row-locks the case, and only finalizes a GENERATING analysis once.
+Delivery outbox bersifat at-least-once. Duplicate delivery RabbitMQ aman karena worker finalization memvalidasi exact `analysis_id`, melakukan row lock pada case, dan hanya memfinalisasi analysis GENERATING satu kali.
 
 ---
 
@@ -1395,9 +1395,9 @@ image/png
 
 Stored evidence includes `mime_type`.
 
-During AI context construction, backend converts the case-scoped GCS object to a `gs://...` URI and supplies it to Gemini as file data. The main API never proxies the binary and no custom OCR pipeline is required for this allowlist.
+Saat membentuk AI context, backend mengubah case-scoped GCS object menjadi URI `gs://...` dan mengirimkannya ke Gemini sebagai file data. Main API tidak pernah mem-proxy binary dan tidak memerlukan custom OCR pipeline untuk allowlist ini.
 
-Unsupported MIME types are rejected rather than stored as AI-invisible evidence.
+MIME yang tidak didukung ditolak, bukan disimpan sebagai evidence yang tidak terlihat oleh AI.
 
 ---
 
@@ -1424,7 +1424,7 @@ REFERENCE
 EXECUTION_RESULT
 ```
 
-User evidence authorization is state-aware:
+Otorisasi user evidence mengikuti state:
 
 ```text
 DRAFT               → Maker only
@@ -1437,7 +1437,7 @@ SUBMITTED / AI_ANALYSIS / DONE / CLOSED
 → no user evidence mutation
 ```
 
-User request carries `actor_role` as acting intent. Backend validates that the authenticated user has that active case assignment, then derives:
+Request user tidak perlu membawa role yang dapat dipercaya dari client. Backend memvalidasi active case assignment authenticated user lalu melakukan derivasi source role:
 
 ```text
 source_user_id
@@ -1446,9 +1446,9 @@ source_type
 
 `SYSTEM` evidence is internal-only and cannot be selected by the client.
 
-Evidence writes are append-only for MVP and do not directly mutate workflow state.
+Write evidence bersifat append-only pada MVP dan tidak langsung mengubah workflow state.
 
-Evidence added during CHECKING/SIGNING/EXECUTION may influence the next governed action, but only Checker REJECT, Signer REJECT, Execution BLOCKED, or Execution FAILED can trigger a new analysis version.
+Evidence yang ditambahkan saat CHECKING/SIGNING/EXECUTION dapat memengaruhi governed action berikutnya, tetapi hanya Checker REJECT, Signer REJECT, Execution BLOCKED, atau Execution FAILED yang dapat memicu analysis version baru.
 
 AI menggunakan evidence sebagai context.
 
@@ -1639,8 +1639,8 @@ sentinel-worker dispatcher
 → mark outbox PUBLISHED
 ```
 
-If dispatcher crashes before publish, PENDING remains retryable.
-If publish succeeds but process fails before PUBLISHED update, duplicate publish is acceptable; the consumer is state-idempotent.
+Jika dispatcher crash sebelum publish, PENDING tetap dapat di-retry.
+Jika publish berhasil tetapi process gagal sebelum update PUBLISHED, duplicate publish diperbolehkan; consumer harus state-idempotent.
 
 RabbitMQ contract:
 
@@ -1652,7 +1652,7 @@ manual consumer acknowledgements
 message_id = outbox_event.id
 ```
 
-Consumer ACK only after the finalization transaction commits. A connection/process failure before ACK may cause redelivery.
+Consumer melakukan ACK hanya setelah finalization transaction commit. Kegagalan connection/process sebelum ACK dapat menyebabkan redelivery.
 
 Technical AI retry configuration:
 
@@ -1662,7 +1662,7 @@ AI_TECHNICAL_MAX_RETRIES=<non-negative integer>
 
 `total attempts = 1 initial + configured retries` within the same analysis version.
 
-After retry exhaustion:
+Setelah retry habis:
 
 ```text
 analysis FAILED
@@ -1670,7 +1670,7 @@ analysis FAILED
 → ESCALATION_REQUIRED
 ```
 
-Verifier FAIL is semantic, not technical retry:
+Verifier FAIL adalah hasil semantic, bukan technical retry:
 
 ```text
 analysis FAILED
@@ -1678,7 +1678,7 @@ analysis FAILED
 → ESCALATION_REQUIRED
 ```
 
-Business re-analysis remains bounded independently by `MAX_REANALYSIS`.
+Business re-analysis tetap dibatasi secara terpisah oleh `MAX_REANALYSIS`.
 
 ---
 
@@ -1692,11 +1692,11 @@ TECHNICAL_RETRY_EXHAUSTED
 REANALYSIS_LIMIT_REACHED
 ```
 
-Kegagalan teknis seperti Vertex unavailability, timeout, or retryable invalid structured output first consume `AI_TECHNICAL_MAX_RETRIES`. Only exhaustion becomes `TECHNICAL_RETRY_EXHAUSTED`.
+Kegagalan teknis seperti Vertex unavailable, timeout, atau retryable invalid structured output lebih dulu mengonsumsi `AI_TECHNICAL_MAX_RETRIES`. Hanya setelah budget habis status menjadi `TECHNICAL_RETRY_EXHAUSTED`.
 
 `POLICY_CONFLICT` is analysis/verifier information, not a direct workflow transition. It only escalates when verification resolves to `FAIL`.
 
-Embedding/policy-indexing failure belongs to policy activation lifecycle and does not directly transition a case.
+Kegagalan embedding/policy-indexing termasuk lifecycle aktivasi policy dan tidak langsung mengubah state case.
 
 Case tidak dihapus atau di-reset.
 
@@ -2063,7 +2063,7 @@ Backend transaction
 HTTP response = AI_ANALYSIS
 ```
 
-No RabbitMQ/Vertex call occurs in the request transaction.
+Tidak ada RabbitMQ/Vertex call di dalam request transaction.
 
 ---
 
