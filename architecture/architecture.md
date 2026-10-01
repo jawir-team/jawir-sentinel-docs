@@ -720,7 +720,7 @@ Case / Retrieval Context
   ↓
 Receive case_type_id + retrieval_text
   ↓
-Filter ACTIVE + Effective Policy
+Filter ACTIVE + READY + Effective Policy
   ↓
 Filter matching case_type_id OR generic policy
   ↓
@@ -766,10 +766,11 @@ Retrieval boundary:
 - Retriever mengembalikan chunk + complete provenance + distance/relevance score.
 - Retriever tidak menentukan `POLICY_FOUND`, `NO_POLICY_FOUND`, `INSUFFICIENT_EVIDENCE`, atau `POLICY_CONFLICT`; status tersebut ditentukan pada analysis/verifier layer.
 
-Policy source of authority:
+Policy source of authority for retrieval:
 
 ```text
 policy_versions.status = ACTIVE
+AND policy_versions.index_status = READY
 ```
 
 Reviewer feedback bukan policy authority.
@@ -778,16 +779,17 @@ Reviewer feedback bukan policy authority.
 
 # 19. Policy Ingestion Architecture
 
-Policy creation:
+Policy creation and activation:
 
 ```text
 Create Policy
   ↓
 Create DRAFT Version
+index_status = NOT_STARTED
   ↓
-Activate Version
+Activation Requested
   ↓
-Version becomes ACTIVE
+index_status = PROCESSING
   ↓
 Normalize Content
   ↓
@@ -797,12 +799,31 @@ Split by Section and Paragraph
   ↓
 Build Chunks
   ↓
-Generate Embeddings
+Generate All Embeddings
   ↓
-Insert policy_chunks
+Persist Complete policy_chunks
+  ↓
+index_status = READY
+  ↓
+Atomic Policy Activation
+  ↓
+old ACTIVE → SUPERSEDED
+target DRAFT → ACTIVE
   ↓
 Ready for Retrieval
 ```
+
+If chunking or embedding fails:
+
+```text
+target.status       = DRAFT
+target.index_status = FAILED
+target.index_error  = safe diagnostic summary
+
+current ACTIVE version remains ACTIVE
+```
+
+External embedding requests are never executed inside the final policy activation transaction.
 
 MVP chunking contract:
 
@@ -1353,7 +1374,7 @@ Timeout
 Invalid structured output
 Verifier failure
 Embedding generation failure
-Policy indexing failure
+Policy indexing failure before activation
 ```
 
 Case tidak dihapus atau di-reset.
@@ -1888,7 +1909,7 @@ Invariant berikut harus selalu benar:
 4. Every decision is tied to an analysis version.
 5. Historical analysis is immutable.
 6. Historical policy reference is immutable.
-7. Only ACTIVE applicable policies are authoritative.
+7. Only ACTIVE + READY applicable policies are authoritative.
 8. External AI calls do not run inside open DB transactions.
 9. Critical workflow mutation uses transaction + row locking.
 10. File binary is stored in Cloud Storage, metadata in PostgreSQL.
