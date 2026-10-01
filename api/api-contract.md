@@ -798,6 +798,24 @@ Response:
 
 ## GET `/cases/{case_id}/analyses/current`
 
+This endpoint resolves `cases.current_analysis_id`.
+
+Semantics:
+
+```text
+current_analysis_id
+= latest COMPLETED analysis with PASS / PASS_WITH_WARNING
+  that became eligible for human review
+```
+
+A newer FAILED analysis does not replace this pointer. Use `GET /cases/{case_id}/analyses` to inspect the latest attempt/version.
+
+If `current_analysis_id` is NULL because no analysis has completed successfully, return:
+
+```text
+404 ANALYSIS_NOT_FOUND
+```
+
 Response:
 
 ```json
@@ -915,6 +933,30 @@ status = FAILED after verifier FAIL
 `null` means the value was not produced. An empty list/object means a valid output was produced and is intentionally empty.
 
 Clients must not interpret null as `NO_POLICY_FOUND`, empty evidence, PASS/FAIL, or any other business conclusion.
+
+Failure and escalation semantics:
+
+```text
+Verifier FAIL
+→ analysis.status = FAILED
+→ verification.status = FAIL
+→ AI_ANALYSIS_FAILED
+→ failure_type = VERIFIER_FAIL
+→ case.status = ESCALATION_REQUIRED
+
+Technical retry exhausted
+→ analysis.status = FAILED
+→ AI_ANALYSIS_FAILED
+→ failure_type = TECHNICAL_RETRY_EXHAUSTED
+→ case.status = ESCALATION_REQUIRED
+
+Re-analysis quota exhausted
+→ no new analysis version is created
+→ REANALYSIS_LIMIT_REACHED
+→ case.status = ESCALATION_REQUIRED
+```
+
+For `ESCALATION_REQUIRED`, MVP exposes no resume/retry/reanalyze action. Active participants may add evidence according to the Evidence authorization matrix or close the case.
 
 ---
 
