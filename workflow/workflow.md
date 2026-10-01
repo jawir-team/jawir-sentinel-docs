@@ -1675,25 +1675,30 @@ Audit event bersifat append-only pada application layer.
 
 Critical workflow mutation harus atomic.
 
-Example Checker Reject:
+Example Checker Reject with re-analysis quota available:
 
 ```text
 BEGIN
 
-Validate state
-Validate actor
-Validate current analysis
-Insert decision
+Lock case
+Validate state / actor / current analysis
+Insert REJECT decision
 Insert reviewer feedback evidence
-Insert audit event
-Update case state → AI_ANALYSIS
+Audit CHECKER_REJECTED
+CHECKING → AI_ANALYSIS
+Check MAX_REANALYSIS
+Allocate next GENERATING analysis
+Audit AI_ANALYSIS_STARTED
+Insert unique PENDING outbox AI_ANALYSIS_REQUESTED
 
 COMMIT
-
-Trigger AI re-analysis
 ```
 
-External AI request tidak dijalankan di dalam open database transaction.
+The HTTP request ends after commit. `sentinel-worker` later dispatches the durable outbox event to RabbitMQ and processes the exact persisted analysis.
+
+If quota is exhausted, the same transaction keeps the REJECT decision/feedback, audits `REANALYSIS_LIMIT_REACHED`, transitions to `ESCALATION_REQUIRED`, and creates no analysis/outbox row.
+
+RabbitMQ and Vertex network calls are never executed inside the business transaction.
 
 ---
 
