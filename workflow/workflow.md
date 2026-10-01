@@ -457,18 +457,43 @@ closed_at
 
 ## 6.9 ESCALATION_REQUIRED
 
-Case membutuhkan manual intervention karena automated governed loop tidak dapat dilanjutkan.
+Case berhenti dari automated governed workflow karena Sentinel tidak dapat melanjutkan secara aman dalam batas MVP.
 
-Trigger:
+MVP escalation cause hanya:
 
 ```text
-Re-analysis limit reached
-Repeated AI analysis failure
-Unresolved policy conflict
-Workflow deadlock
+VERIFIER_FAIL
+TECHNICAL_RETRY_EXHAUSTED
+REANALYSIS_LIMIT_REACHED
 ```
 
-Case tidak otomatis melanjutkan workflow sampai human intervention dilakukan.
+`POLICY_CONFLICT` bukan standalone workflow trigger. Policy conflict dapat berkontribusi pada verifier `FAIL`, dan escalation terjadi melalui `VERIFIER_FAIL`.
+
+Allowed activity:
+
+```text
+View case
+View analysis history
+View audit history
+Add evidence
+Close case
+```
+
+Not allowed:
+
+```text
+Approve
+Reject
+Sign
+Execute
+Re-analyze
+Resume workflow
+Reset retry/re-analysis quota
+Edit case core data
+Change participants
+```
+
+MVP tidak memiliki resume/reopen dari `ESCALATION_REQUIRED`. Jika masalah perlu diproses kembali, participant menutup case lama dengan reason lalu Maker membuat case baru; case baru dapat menambahkan REFERENCE evidence ke case lama.
 
 ---
 
@@ -479,7 +504,8 @@ Case tidak otomatis melanjutkan workflow sampai human intervention dilakukan.
 | DRAFT | SUBMIT | SUBMITTED |
 | SUBMITTED | START_ANALYSIS | AI_ANALYSIS |
 | AI_ANALYSIS | ANALYSIS_SUCCESS | CHECKING |
-| AI_ANALYSIS | ANALYSIS_FAILED_LIMIT | ESCALATION_REQUIRED |
+| AI_ANALYSIS | ANALYSIS_FAILED | ESCALATION_REQUIRED |
+| AI_ANALYSIS | REANALYSIS_LIMIT_REACHED | ESCALATION_REQUIRED |
 | CHECKING | ALL_CHECKERS_APPROVED | SIGNING |
 | CHECKING | CHECKER_REJECTED | AI_ANALYSIS |
 | SIGNING | SIGNER_APPROVED | EXECUTION |
@@ -512,7 +538,8 @@ ESCALATION_REQUIRED
 SUBMIT
 START_ANALYSIS
 ANALYSIS_SUCCESS
-ANALYSIS_FAILED_LIMIT
+ANALYSIS_FAILED
+REANALYSIS_LIMIT_REACHED
 
 CHECKER_APPROVED
 CHECKER_REJECTED
@@ -650,14 +677,30 @@ Retryable technical failures include timeout, transient provider failure, and in
 
 Verifier `FAIL` is a semantic verification result and is not retried as a technical provider failure.
 
+Verifier terminal failure:
+
+```text
+Persist analysis FAILED
+Preserve valid structured analysis output
+verification_status = FAIL
+↓
+Audit AI_ANALYSIS_FAILED
+metadata.failure_type = VERIFIER_FAIL
+↓
+ANALYSIS_FAILED
+↓
+AI_ANALYSIS → ESCALATION_REQUIRED
+```
+
 If the technical retry budget is exhausted:
 
 ```text
-mark analysis FAILED
+Persist analysis FAILED
 ↓
 Audit AI_ANALYSIS_FAILED
+metadata.failure_type = TECHNICAL_RETRY_EXHAUSTED
 ↓
-ANALYSIS_FAILED_LIMIT
+ANALYSIS_FAILED
 ↓
 AI_ANALYSIS → ESCALATION_REQUIRED
 ```
@@ -1041,6 +1084,25 @@ Verification Result
 ```
 
 Approval selalu terikat ke exact `analysis_id`.
+
+`cases.current_analysis_id` memiliki semantics khusus:
+
+```text
+latest successfully COMPLETED analysis
+with verification PASS or PASS_WITH_WARNING
+that became eligible for human review
+```
+
+Failed analysis attempt tidak pernah mengganti `current_analysis_id`.
+
+Karena itu pada `ESCALATION_REQUIRED` dapat terjadi:
+
+```text
+current_analysis_id = v1 COMPLETED
+latest analysis attempt = v2 FAILED
+```
+
+Latest attempt ditentukan dari highest persisted `ai_analyses.version`, bukan dari `current_analysis_id`.
 
 ---
 
@@ -1436,15 +1498,26 @@ Satu business analysis cycle hanya memperoleh satu `ai_analyses.version`. Retry 
 
 Jika seluruh technical attempt habis tanpa usable result, current analysis menjadi `FAILED`, `AI_ANALYSIS_FAILED` diaudit, dan case masuk `ESCALATION_REQUIRED`.
 
-Other escalation trigger:
+Re-analysis quota exhaustion:
 
 ```text
-Repeated AI failure
-Unresolved policy conflict
-Workflow deadlock
+governed business trigger requests next analysis
+↓
+MAX_REANALYSIS already exhausted
+↓
+do not allocate another analysis version
+↓
+Audit REANALYSIS_LIMIT_REACHED
+metadata includes latest_analysis_version + max_reanalysis
+↓
+REANALYSIS_LIMIT_REACHED
+↓
+case → ESCALATION_REQUIRED
 ```
 
-`ESCALATION_REQUIRED` membutuhkan manual human intervention.
+MVP tidak memiliki standalone escalation event untuk policy conflict atau generic workflow deadlock.
+
+`ESCALATION_REQUIRED` adalah stopped state tanpa resume. Active participant masih dapat menambah evidence untuk investigation dan dapat menutup case.
 
 ---
 
@@ -1775,6 +1848,10 @@ Invariant berikut harus selalu benar:
 17. Manual/generic re-analysis tidak tersedia pada MVP.
 18. User evidence mutation hanya tersedia pada DRAFT/CHECKING/SIGNING/EXECUTION/ESCALATION_REQUIRED sesuai role authorization.
 19. Evidence mutation tidak pernah mengubah workflow state secara langsung.
+20. current_analysis_id hanya menunjuk COMPLETED PASS/PASS_WITH_WARNING analysis; FAILED attempt tidak mengganti pointer.
+21. AI terminal failure menggunakan ANALYSIS_FAILED dengan cause VERIFIER_FAIL atau TECHNICAL_RETRY_EXHAUSTED.
+22. Re-analysis quota exhaustion menggunakan REANALYSIS_LIMIT_REACHED dan tidak membuat analysis version baru.
+23. ESCALATION_REQUIRED tidak dapat resume pada MVP; allowed user mutations hanya evidence dan close sesuai authorization.
 ```
 
 ---
