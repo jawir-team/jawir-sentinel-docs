@@ -714,6 +714,15 @@ SIGNER
 EXECUTER
 ```
 
+Preconditions:
+
+```text
+case.status = DRAFT
+target user.status = ACTIVE
+target user has no other ACTIVE role on this case
+strict SoD remains valid
+```
+
 Request:
 
 ```json
