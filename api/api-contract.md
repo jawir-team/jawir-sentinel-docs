@@ -364,7 +364,8 @@ Response:
   "data": {
     "id": "uuid",
     "case_number": "CASE-2026-000001",
-    "status": "DRAFT"
+    "status": "DRAFT",
+    "index_status": "NOT_STARTED"
   }
 }
 ```
@@ -1196,6 +1197,9 @@ Response:
     "policy_id": "uuid",
     "version": "1.0",
     "status": "ACTIVE",
+    "index_status": "READY",
+    "index_error": null,
+    "indexed_at": "2026-10-01T09:14:00Z",
     "content": "Policy content...",
     "effective_from": "2026-10-01T00:00:00Z",
     "effective_until": null,
@@ -1215,14 +1219,16 @@ Request:
 {}
 ```
 
-Response:
+Successful response:
 
 ```json
 {
   "data": {
     "id": "uuid",
     "version": "1.0",
-    "status": "ACTIVE"
+    "status": "ACTIVE",
+    "index_status": "READY",
+    "indexed_at": "2026-10-01T09:14:00Z"
   }
 }
 ```
@@ -1230,9 +1236,43 @@ Response:
 Behavior:
 
 ```text
-current ACTIVE version → SUPERSEDED
-target DRAFT version → ACTIVE
+validate target DRAFT
+↓
+target.index_status = PROCESSING
+↓ COMMIT
+
+chunk target content
+↓
+generate all embeddings
+↓
+persist complete embedded chunks
+↓
+target.index_status = READY
+
+↓
+atomic activation transaction
+↓
+current ACTIVE → SUPERSEDED
+target DRAFT → ACTIVE
+↓
+audit policy lifecycle
 ```
+
+If indexing fails:
+
+```text
+target.status       = DRAFT
+target.index_status = FAILED
+target.index_error  = safe diagnostic summary
+
+current ACTIVE version remains unchanged
+```
+
+Indexing/Vertex calls do not run inside an open activation transaction.
+
+Only `ACTIVE + READY + effective` policy versions are eligible for retrieval.
+
+MVP does not expose an endpoint to mutate DRAFT policy content after creation. A changed policy body is created as a new policy version.
 
 ---
 
@@ -1324,6 +1364,7 @@ Response:
 | STALE_ANALYSIS | 409 |
 | POLICY_CONFLICT | 409 |
 | REANALYSIS_LIMIT_REACHED | 409 |
+| POLICY_INDEXING_FAILED | 502 |
 | AI_OUTPUT_INVALID | 502 |
 | AI_ANALYSIS_FAILED | 502 |
 | INTERNAL_ERROR | 500 |
