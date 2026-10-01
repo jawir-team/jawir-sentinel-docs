@@ -511,6 +511,24 @@ Backend triggers AI analysis.
 
 ## POST `/cases/{case_id}/close`
 
+Any active case participant with role `MAKER`, `CHECKER`, `SIGNER`, or `EXECUTER` may close the case.
+
+Allowed source states:
+
+```text
+DRAFT
+SUBMITTED
+AI_ANALYSIS
+CHECKING
+SIGNING
+EXECUTION
+ESCALATION_REQUIRED
+```
+
+`DONE` and `CLOSED` cannot be closed again.
+
+`reason` is required and must be non-empty.
+
 Request:
 
 ```json
@@ -531,6 +549,18 @@ Response:
   }
 }
 ```
+
+Behavior:
+
+```text
+validate active participant
+→ validate non-terminal state
+→ persist closed_by / close_reason / closed_at
+→ audit CASE_CLOSED with actor role and previous status
+→ CLOSED
+```
+
+Once the case is `CLOSED`, asynchronous AI completion or later workflow actions must not transition it out of `CLOSED`.
 
 ---
 
