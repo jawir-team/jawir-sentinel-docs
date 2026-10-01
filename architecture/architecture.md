@@ -1146,6 +1146,8 @@ Require Human Re-review
 
 Critical mutation dilakukan dalam short-lived transaction.
 
+A governed action that requests re-analysis must persist the business action even when the re-analysis quota is exhausted.
+
 Example Checker Reject:
 
 ```text
@@ -1155,19 +1157,36 @@ Lock Case
 Validate State
 Validate Actor
 Validate Analysis
-Insert Decision
+Insert REJECT Decision
 Insert Feedback Evidence
-Insert Audit Event
-Update Case State
+Audit CHECKER_REJECTED
+Apply CHECKER_REJECTED → AI_ANALYSIS
+
+Check MAX_REANALYSIS
+
+if quota available:
+  final state = AI_ANALYSIS
+
+if quota exhausted:
+  Audit REANALYSIS_LIMIT_REACHED
+  Apply REANALYSIS_LIMIT_REACHED → ESCALATION_REQUIRED
 
 COMMIT
 ```
 
-Setelah commit:
+After commit:
 
 ```text
-Trigger AI Re-analysis
+if final state = AI_ANALYSIS
+→ Trigger AI Re-analysis
+
+if final state = ESCALATION_REQUIRED
+→ Do not call AI
 ```
+
+The same pattern applies to Signer Reject and Execution BLOCKED/FAILED.
+
+Quota exhaustion is a successful governed business outcome, not a rolled-back HTTP conflict.
 
 External AI call tidak dijalankan dalam open DB transaction.
 
