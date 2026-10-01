@@ -363,7 +363,7 @@ Request:
   "name": "Risk Reviewer",
   "unit_id": "uuid",
   "status": "ACTIVE",
-  "is_admin": false
+  "system_role": "USER"
 }
 ```
 
