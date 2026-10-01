@@ -584,6 +584,9 @@ id               UUID          PK
 policy_id        UUID          NOT NULL FK → policies.id
 version          VARCHAR(30)   NOT NULL
 status           VARCHAR(20)   NOT NULL DEFAULT 'DRAFT'
+index_status     VARCHAR(20)   NOT NULL DEFAULT 'NOT_STARTED'
+index_error      TEXT          NULL
+indexed_at       TIMESTAMPTZ   NULL
 
 content          TEXT          NOT NULL
 file_path        TEXT          NULL
@@ -606,6 +609,17 @@ ACTIVE
 SUPERSEDED
 ```
 
+Allowed index status:
+
+```text
+NOT_STARTED
+PROCESSING
+READY
+FAILED
+```
+
+Index lifecycle is independent from policy authority lifecycle.
+
 Constraint:
 
 ```text
@@ -625,7 +639,9 @@ Indexes:
 ```text
 INDEX(policy_id)
 INDEX(status)
+INDEX(index_status)
 INDEX(policy_id, status)
+INDEX(policy_id, status, index_status)
 INDEX(effective_from)
 INDEX(effective_until)
 ```
@@ -638,21 +654,33 @@ ON policy_versions(policy_id)
 WHERE status = 'ACTIVE';
 ```
 
-Authoritative policy condition:
+Authoritative retrieval condition:
 
 ```text
 status = ACTIVE
-
-AND
-
-effective_from <= now()
-OR effective_from IS NULL
-
-AND
-
-effective_until > now()
-OR effective_until IS NULL
+AND index_status = READY
+AND (effective_from <= now() OR effective_from IS NULL)
+AND (effective_until > now() OR effective_until IS NULL)
 ```
+
+Policy lifecycle and retrieval readiness are intentionally separated:
+
+```text
+status
+→ DRAFT | ACTIVE | SUPERSEDED
+
+index_status
+→ NOT_STARTED | PROCESSING | READY | FAILED
+```
+
+Rules:
+
+- a policy version may become `ACTIVE` only when `index_status = READY`;
+- `READY` requires `indexed_at IS NOT NULL` and `index_error IS NULL`;
+- `FAILED` keeps the policy version `DRAFT` and stores a safe diagnostic summary in `index_error`;
+- the currently ACTIVE version remains ACTIVE while a newer DRAFT version is being indexed;
+- MVP does not expose an API to edit DRAFT policy content after creation. A changed policy body is represented by a new version;
+- if content mutation is introduced later, it must delete derived chunks and reset `index_status = NOT_STARTED`, `indexed_at = NULL`, and `index_error = NULL`.
 
 ---
 
@@ -1430,26 +1458,92 @@ Historical AI analysis tetap reference ke exact old policy version yang digunaka
 
 ---
 
-# 27. Policy Activation Transaction
+# 27. Policy Indexing and Activation
 
-Policy activation:
+Activation uses **index first, activate second**.
+
+Initial target:
+
+```text
+target.status       = DRAFT
+target.index_status = NOT_STARTED | FAILED
+```
+
+Index preparation transaction:
+
+```text
+BEGIN
+
+1. Lock target policy version
+2. Validate target.status = DRAFT
+3. Set index_status = PROCESSING
+4. Clear index_error
+5. Delete derived chunks for exact policy_version_id if any
+
+COMMIT
+```
+
+Outside database transaction:
+
+```text
+Build deterministic chunks
+↓
+Generate all embeddings
+```
+
+If indexing fails:
+
+```text
+BEGIN
+Set target.index_status = FAILED
+Set target.index_error = safe diagnostic summary
+Set target.indexed_at = NULL
+COMMIT
+
+Current ACTIVE version remains unchanged.
+Target remains DRAFT.
+```
+
+If indexing succeeds:
+
+```text
+BEGIN
+
+1. Insert complete embedded policy_chunks
+2. Set target.index_status = READY
+3. Set target.indexed_at = now()
+4. Clear target.index_error
+
+COMMIT
+```
+
+Final activation transaction:
 
 ```text
 BEGIN
 
 1. Lock policy versions for policy_id
-2. Validate target version = DRAFT
-3. Update current ACTIVE → SUPERSEDED
-4. Update target → ACTIVE
-5. Set approved_by / approved_at
-6. Insert audit metadata/event as applicable
+2. Validate target.status = DRAFT
+3. Validate target.index_status = READY
+4. Update current ACTIVE → SUPERSEDED
+5. Update target DRAFT → ACTIVE
+6. Set approved_by / approved_at
+7. Insert POLICY_SUPERSEDED / POLICY_ACTIVATED audit events
 
 COMMIT
 ```
 
-Chunking dan embedding dilakukan setelah activation transaction berhasil.
+No Vertex AI call runs inside an open database transaction.
 
-Retrieval hanya menggunakan active version yang indexing-nya siap.
+A failed indexing attempt must never supersede the current ACTIVE policy.
+
+Retrieval only uses versions satisfying:
+
+```text
+status = ACTIVE
+AND index_status = READY
+AND effective date is valid
+```
 
 ---
 
@@ -1916,19 +2010,21 @@ Invariant berikut harus selalu benar:
 3. user email unique.
 4. policy code unique.
 5. one ACTIVE version per policy.
-6. analysis version unique per case.
-7. one decision per actor-role per analysis.
-8. current_analysis_id belongs to the same case.
-9. Signer decision references current analysis.
-10. Checker decision references current analysis.
-11. DONE only after successful execution.
-12. CLOSED requires close metadata.
-13. active Maker max 1 per case; active Signer max 1 per case; active Executer max 1 per case.
-14. participant set is immutable after case leaves DRAFT.
-15. audit events are append-only.
-16. audit scope invariants are valid; policy events never use fake case_id.
-17. historical analysis is never overwritten.
-18. historical policy references remain stable.
+6. ACTIVE policy version must have index_status = READY.
+7. indexing failure never supersedes the current ACTIVE policy.
+8. analysis version unique per case.
+9. one decision per actor-role per analysis.
+10. current_analysis_id belongs to the same case.
+11. Signer decision references current analysis.
+12. Checker decision references current analysis.
+13. DONE only after successful execution.
+14. CLOSED requires close metadata.
+15. active Maker max 1 per case; active Signer max 1 per case; active Executer max 1 per case.
+16. participant set is immutable after case leaves DRAFT.
+17. audit events are append-only.
+18. audit scope invariants are valid; policy events never use fake case_id.
+19. historical analysis is never overwritten.
+20. historical policy references remain stable.
 ```
 
 Invariant nomor 8 harus divalidasi di application layer karena FK standar tidak dapat memastikan cross-column same-case relationship secara langsung.
