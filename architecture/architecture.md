@@ -687,13 +687,53 @@ Activate Version
   ↓
 Version becomes ACTIVE
   ↓
-Chunk Content
+Normalize Content
+  ↓
+Detect Section / Heading
+  ↓
+Split by Section and Paragraph
+  ↓
+Build Chunks
   ↓
 Generate Embeddings
   ↓
 Insert policy_chunks
   ↓
 Ready for Retrieval
+```
+
+MVP chunking contract:
+
+```text
+strategy      = section-aware + paragraph-aware
+max_chunk     = 600 tokens
+overlap       = 100 tokens
+chunk_index   = global sequential per policy version
+reprocessing  = replace derived chunks for exact policy version
+```
+
+Rules:
+
+- section yang lebih kecil dari batas tidak dipaksa mencapai 600 tokens;
+- section besar dipecah pada paragraph boundary selama memungkinkan;
+- overlap 100 tokens hanya digunakan ketika satu section harus dipecah menjadi lebih dari satu chunk;
+- heading detector mendukung Markdown heading dan numbered heading seperti `4.2 Approval Requirement`;
+- jika heading tidak terdeteksi, paragraph boundary menjadi fallback;
+- `section` menyimpan heading terdekat bila tersedia;
+- `chunk_index` tidak reset per section;
+- chunking harus deterministic untuk content dan configuration yang sama;
+- `policy_versions.content` tetap source content; `policy_chunks` adalah derived retrieval data.
+
+Jika exact policy version perlu di-index ulang:
+
+```text
+Delete derived chunks for policy_version_id
+↓
+Regenerate chunks using current locked chunking contract
+↓
+Generate embeddings
+↓
+Insert replacement chunks
 ```
 
 Historical old version:
