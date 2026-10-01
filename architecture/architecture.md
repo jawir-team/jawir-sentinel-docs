@@ -448,6 +448,49 @@ execute
 close
 ```
 
+## 10.1 Case Governance Snapshot
+
+Case menggunakan logical governance snapshot pada saat submission.
+
+Tidak ada table snapshot participant terpisah pada MVP. Snapshot dijaga dengan rule immutability:
+
+```text
+DRAFT
+→ case core data editable
+→ Checker / Signer / Executer assignment editable
+
+SUBMIT
+→ validate cardinality
+→ validate SoD
+→ freeze case core data
+→ freeze participant set
+
+SUBMITTED and later
+→ participant mutation forbidden
+→ case core mutation forbidden
+```
+
+Locked cardinality:
+
+```text
+Maker     exactly 1, creator, immutable
+Checker   1..N, at least 1 required
+Signer    exactly 1
+Executer  exactly 1
+```
+
+Data yang tetap berkembang selama workflow:
+
+```text
+evidence
+AI analysis versions
+human decisions
+execution attempts
+audit events
+```
+
+Jika participant pada case berjalan harus diganti, backend tidak melakukan role transfer. Existing case di-close dengan reason, lalu Maker membuat case baru dengan participant context yang baru.
+
 ---
 
 # 11. Authentication Architecture
@@ -1650,9 +1693,10 @@ Frontend
   ▼
 Backend
   │
-  ├── Validate Participants
+  ├── Validate Participant Cardinality
   ├── Validate SoD
   ├── Lock Case
+  ├── Freeze Case Core + Participant Context
   ├── Transition → SUBMITTED
   ├── Audit
   ├── Transition → AI_ANALYSIS
@@ -1857,7 +1901,10 @@ Invariant berikut harus selalu benar:
 17. DONE only follows successful execution.
 18. BLOCKED/FAILED returns workflow to AI_ANALYSIS.
 19. AI failure does not delete or reset the case.
-20. Docs define the contract; FE and BE implement it.
+20. Case core data and participant set are immutable after submission.
+21. In-flight participant replacement is not supported; close + new case is required.
+22. Maker is the case creator and its assignment is immutable.
+23. Docs define the contract; FE and BE implement it.
 ```
 
 ---
