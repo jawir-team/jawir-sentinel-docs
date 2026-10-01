@@ -1287,7 +1287,7 @@ source_user_id = authenticated user
 source_type    = validated actor_role
 ```
 
-Ini diperlukan terutama ketika satu user memiliki lebih dari satu role yang valid, misalnya `MAKER = EXECUTER`.
+Client-supplied `actor_role` remains an explicit acting-role intent and is always validated against the user's single ACTIVE participant role.
 
 `SYSTEM` evidence hanya dapat dibuat oleh internal backend process dan tidak dapat dipilih melalui user-facing evidence endpoint.
 
