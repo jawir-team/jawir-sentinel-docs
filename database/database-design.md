@@ -614,7 +614,7 @@ policy_version_id  UUID          NOT NULL FK → policy_versions.id
 section            VARCHAR(150)  NULL
 chunk_index        INTEGER       NOT NULL
 content            TEXT          NOT NULL
-embedding          VECTOR        NOT NULL
+embedding          VECTOR(768)   NOT NULL
 created_at         TIMESTAMPTZ   NOT NULL DEFAULT now()
 ```
 
@@ -637,7 +637,32 @@ INDEX(policy_version_id)
 VECTOR INDEX(embedding)
 ```
 
-Vector dimension mengikuti embedding model yang digunakan backend.
+MVP embedding contract:
+
+```text
+model                  = gemini-embedding-001
+output_dimensionality  = 768
+document task          = RETRIEVAL_DOCUMENT
+query task             = RETRIEVAL_QUERY
+distance               = cosine
+index                  = HNSW
+```
+
+Database column harus menggunakan:
+
+```sql
+embedding VECTOR(768) NOT NULL
+```
+
+Vector index:
+
+```sql
+CREATE INDEX idx_policy_chunks_embedding_hnsw
+ON policy_chunks
+USING hnsw (embedding vector_cosine_ops);
+```
+
+MVP menggunakan default HNSW parameters. Perubahan embedding model atau dimensionality membutuhkan re-embedding seluruh derived policy chunks dan migration schema bila dimension berubah.
 
 MVP chunking contract:
 
