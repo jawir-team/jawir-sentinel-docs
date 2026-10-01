@@ -43,7 +43,7 @@ USER
 ADMIN
 ```
 
-System role is stored on the internal user and is separate from case workflow roles.
+System role disimpan pada internal user dan terpisah dari case workflow role.
 
 Authorization matrix:
 
@@ -141,7 +141,7 @@ SIGNER
 EXECUTER
 ```
 
-One active user may hold only one participant role on a case.
+Satu active user hanya boleh memiliki satu participant role pada sebuah case.
 
 ## Decision
 
@@ -265,7 +265,7 @@ Response:
 
 ## POST `/units`
 
-Otorisasi: `ADMIN` only.
+Otorisasi: hanya `ADMIN`.
 
 Request:
 
@@ -296,9 +296,9 @@ Response:
 
 ## GET `/users`
 
-Available to any authenticated ACTIVE user because Maker needs a participant directory.
+Tersedia untuk semua authenticated ACTIVE user karena Maker membutuhkan participant directory.
 
-The list response intentionally does **not** expose `firebase_uid`.
+List response sengaja **tidak** mengekspos `firebase_uid`.
 
 Query parameters:
 
@@ -337,7 +337,7 @@ Response:
 
 ## POST `/users`
 
-Otorisasi: `ADMIN` only.
+Otorisasi: hanya `ADMIN`.
 
 Request:
 
@@ -354,7 +354,7 @@ Request:
 
 ## PATCH `/users/{user_id}`
 
-Otorisasi: `ADMIN` only.
+Otorisasi: hanya `ADMIN`.
 
 Safety invariant:
 
@@ -362,7 +362,7 @@ Safety invariant:
 The system must always retain at least one ACTIVE ADMIN.
 ```
 
-A PATCH that would demote or inactivate the **last ACTIVE ADMIN** is rejected with `409 INVALID_STATE_TRANSITION`. This includes self-demotion/self-deactivation when the caller is the last ACTIVE ADMIN.
+PATCH yang akan menurunkan system role atau menonaktifkan **ACTIVE ADMIN terakhir** ditolak dengan `409 INVALID_STATE_TRANSITION`. Ini termasuk self-demotion/self-deactivation ketika caller adalah ACTIVE ADMIN terakhir.
 
 User deactivation guard:
 
@@ -372,9 +372,9 @@ is forbidden while the target user has any ACTIVE case_participant
 on a non-terminal case.
 ```
 
-Non-terminal means any case state except `DONE` and `CLOSED`.
+Non-terminal berarti seluruh case state selain `DONE` dan `CLOSED`.
 
-This prevents frozen workflow assignments from becoming unactionable. The case must finish or be safely closed first.
+Guard ini mencegah frozen workflow assignment menjadi tidak dapat dijalankan. Case harus selesai atau di-CLOSE dengan aman terlebih dahulu.
 
 Request:
 
@@ -410,7 +410,7 @@ Response:
 
 ## POST `/case-types`
 
-Otorisasi: `ADMIN` only.
+Otorisasi: hanya `ADMIN`.
 
 Request:
 
@@ -430,7 +430,7 @@ Request:
 
 Create draft case.
 
-The authenticated creator is automatically assigned as the case's single active `MAKER` and becomes the immutable `owner`.
+Authenticated creator otomatis menjadi satu-satunya active `MAKER` dan immutable `owner` pada case.
 
 ```text
 created_by = authenticated user
@@ -438,7 +438,7 @@ owner_id   = authenticated user
 MAKER      = authenticated user
 ```
 
-Maker/owner cannot be replaced in MVP.
+Maker/owner tidak dapat diganti pada MVP.
 
 Request:
 
@@ -510,7 +510,7 @@ Response:
 
 ## GET `/cases/{case_id}`
 
-Otorisasi: active case participant or `ADMIN`. ADMIN read access does not grant workflow mutation authority.
+Otorisasi: active case participant atau `ADMIN`. Read access ADMIN tidak memberi workflow mutation authority.
 
 Response:
 
@@ -559,13 +559,13 @@ Response:
 
 ---
 
-`current_analysis` may be `null` when no COMPLETED PASS/PASS_WITH_WARNING analysis has ever become reviewable. It is not guaranteed to be the latest analysis attempt.
+`current_analysis` dapat bernilai `null` jika belum pernah ada COMPLETED PASS/PASS_WITH_WARNING analysis yang reviewable. Nilai ini tidak selalu menunjuk analysis attempt terbaru.
 
 ---
 
 ## PATCH `/cases/{case_id}`
 
-Only valid while case is `DRAFT`.
+Hanya valid ketika case berstatus `DRAFT`.
 
 Request:
 
@@ -623,13 +623,13 @@ validate participant cardinality + SoD
 → AI_ANALYSIS
 ```
 
-After submission, case core fields and participant assignments are immutable. Backend triggers AI analysis.
+Setelah submission, core field case dan participant assignment menjadi immutable. Backend menyiapkan AI analysis secara asynchronous.
 
 ---
 
 ## POST `/cases/{case_id}/close`
 
-Any active case participant with role `MAKER`, `CHECKER`, `SIGNER`, or `EXECUTER` may close the case.
+Active case participant dengan role `MAKER`, `CHECKER`, `SIGNER`, atau `EXECUTER` dapat menutup case.
 
 Allowed source states:
 
@@ -681,19 +681,19 @@ validate active participant
 → CLOSED
 ```
 
-If analysis generation or execution is still active, close returns `409 INVALID_STATE_TRANSITION`; the client must wait for the process to reach a terminal state.
+Jika analysis generation atau execution masih aktif, close mengembalikan `409 INVALID_STATE_TRANSITION`; client harus menunggu proses mencapai terminal state.
 
-Once the case is `CLOSED`, no later workflow action may transition it out of `CLOSED`.
+Setelah case menjadi `CLOSED`, workflow action berikutnya tidak boleh memindahkan case keluar dari `CLOSED`.
 
 ---
 
 # 9. Case Participants
 
-Participant mutation is valid **only while the case is `DRAFT`**.
+Participant mutation valid **hanya ketika case berstatus `DRAFT`**.
 
-Maker is created automatically with the case and cannot be assigned, unassigned, or replaced through the participant API.
+Maker dibuat otomatis bersama case dan tidak dapat di-assign, di-unassign, atau diganti melalui participant API.
 
-Strict SoD: Maker, every Checker, Signer, and Executer are distinct users. A user with an existing ACTIVE participant role cannot be assigned another ACTIVE role on the same case.
+Strict SoD: Maker, setiap Checker, Signer, dan Executer harus menggunakan user berbeda. User yang sudah memiliki ACTIVE participant role tidak dapat diberi ACTIVE role lain pada case yang sama.
 
 Cardinality at submit:
 
@@ -706,7 +706,7 @@ EXECUTER  exactly 1 active
 
 ## POST `/cases/{case_id}/participants`
 
-Allowed role through this endpoint:
+Role yang diizinkan melalui endpoint ini:
 
 ```text
 CHECKER
@@ -748,7 +748,7 @@ Response:
 }
 ```
 
-If the case is no longer `DRAFT`:
+Jika case sudah bukan `DRAFT`:
 
 ```text
 409 INVALID_STATE_TRANSITION
@@ -756,7 +756,7 @@ If the case is no longer `DRAFT`:
 
 ## DELETE `/cases/{case_id}/participants/{participant_id}`
 
-Only valid for `CHECKER`, `SIGNER`, or `EXECUTER` assignments while the case is `DRAFT`.
+Hanya valid untuk assignment `CHECKER`, `SIGNER`, atau `EXECUTER` selama case berstatus `DRAFT`.
 
 Response:
 
@@ -769,7 +769,7 @@ Response:
 }
 ```
 
-After submission, the participant set is frozen. If a participant must be replaced, close the current case with an explicit reason and create a new case with the new participant set. MVP has no participant replacement or reopen flow for an in-flight/closed case.
+Setelah submission, participant set dibekukan. Jika participant harus diganti, tutup case saat ini dengan reason yang jelas lalu buat case baru dengan participant set baru. MVP tidak memiliki participant replacement atau reopen flow untuk case yang sedang berjalan maupun sudah CLOSED.
 
 ---
 
@@ -827,7 +827,7 @@ DONE                  → forbidden
 CLOSED                → forbidden
 ```
 
-Because strict SoD allows only one active workflow role per user on a case, client does not send `actor_role` or authoritative `source_type`.
+Karena strict SoD hanya mengizinkan satu active workflow role per user pada satu case, client tidak mengirim `actor_role` atau authoritative `source_type`.
 
 Backend melakukan derivasi:
 
@@ -840,7 +840,7 @@ No active assignment → FORBIDDEN.
 
 `SYSTEM` is internal-only and cannot be selected through this endpoint.
 
-Adding evidence does not change case status and does not automatically trigger re-analysis.
+Menambahkan evidence tidak mengubah case status dan tidak otomatis memicu re-analysis.
 
 ---
 
@@ -880,9 +880,9 @@ Request:
 }
 ```
 
-The same evidence state/role authorization applies to both signed-URL issuance and final file-evidence registration. Backend revalidates authorization at registration time because case state may have changed after the upload URL was issued.
+Authorization state/role evidence yang sama berlaku saat signed-URL issuance maupun final file-evidence registration. Backend memvalidasi ulang authorization saat registration karena case state dapat berubah setelah upload URL diterbitkan.
 
-The source role is derived server-side from the authenticated user's unique active case assignment; no actor-role field is accepted from the client.
+Source role di-derive server-side dari unique active case assignment authenticated user; client tidak mengirim actor-role field.
 
 MVP file MIME allowlist:
 
@@ -892,9 +892,9 @@ image/jpeg
 image/png
 ```
 
-Backend also validates that `file_key` belongs to the requested case evidence prefix, the GCS object exists, and the stored object MIME matches the allowed type. Client cannot register an arbitrary object path as case evidence.
+Backend juga memvalidasi bahwa `file_key` berada pada evidence prefix milik case, GCS object benar-benar ada, dan MIME object sesuai allowlist. Client tidak dapat mendaftarkan arbitrary object path sebagai case evidence.
 
-Registered file evidence stores `mime_type` and can be passed directly from its GCS URI to Gemini during analysis.
+File evidence yang terdaftar menyimpan `mime_type` dan dapat dikirim langsung dari GCS URI ke Gemini saat analysis.
 
 ---
 
@@ -933,7 +933,7 @@ Response:
 
 ## GET `/cases/{case_id}/analyses/current`
 
-This endpoint resolves `cases.current_analysis_id`.
+Endpoint ini me-resolve `cases.current_analysis_id`.
 
 Semantik:
 
@@ -943,15 +943,15 @@ current_analysis_id
   that became eligible for human review
 ```
 
-A newer FAILED analysis does not replace this pointer. Use `GET /cases/{case_id}/analyses` to inspect the latest attempt/version.
+Analysis FAILED yang lebih baru tidak mengganti pointer ini. Gunakan `GET /cases/{case_id}/analyses` untuk melihat attempt/version terbaru.
 
-If `current_analysis_id` is NULL because no analysis has completed successfully, return:
+Jika `current_analysis_id` NULL karena belum ada analysis yang selesai dengan sukses, kembalikan:
 
 ```text
 404 ANALYSIS_NOT_FOUND
 ```
 
-Interpretasi client bergantung pada state: while the case is `AI_ANALYSIS`, this means no reviewable analysis exists yet and is a normal loading condition, not a missing-case page.
+Interpretasi client bergantung pada state: ketika case berstatus `AI_ANALYSIS`, kondisi ini berarti belum ada reviewable analysis dan harus dianggap sebagai loading normal, bukan halaman case yang hilang.
 
 Response:
 
@@ -1044,9 +1044,9 @@ Response:
 
 ## GET `/cases/{case_id}/analyses/{analysis_id}`
 
-Response shape sama dengan current analysis.
+Bentuk response sama dengan analysis saat ini.
 
-Historical analysis bersifat read-only.
+Analysis historis bersifat read-only.
 
 Analysis result-field semantics:
 
@@ -1069,9 +1069,9 @@ status = FAILED after verifier FAIL
 
 `null` means the value was not produced. An empty list/object means a valid output was produced and is intentionally empty.
 
-Clients must not interpret null as `NO_POLICY_FOUND`, empty evidence, PASS/FAIL, or any other business conclusion.
+Client tidak boleh menafsirkan null sebagai `NO_POLICY_FOUND`, evidence kosong, PASS/FAIL, atau business conclusion lain.
 
-Failure and escalation semantics:
+Semantik failure dan escalation:
 
 ```text
 Verifier FAIL
@@ -1093,19 +1093,19 @@ Re-analysis quota exhausted
 → case.status = ESCALATION_REQUIRED
 ```
 
-For `ESCALATION_REQUIRED`, MVP exposes no resume/retry/reanalyze action. Active participants may add evidence according to the Evidence authorization matrix or close the case.
+Untuk `ESCALATION_REQUIRED`, MVP tidak menyediakan action resume/retry/reanalyze. Active participant dapat menambah evidence sesuai authorization matrix Evidence atau menutup case.
 
 ---
 
 ## Manual Re-analysis
 
-MVP does **not** expose:
+MVP **tidak** menyediakan:
 
 ```http
 POST /cases/{case_id}/reanalyze
 ```
 
-A new analysis version may only be triggered by governed business actions:
+Analysis version baru hanya dapat dipicu oleh governed business action:
 
 ```text
 CHECKER_REJECTED
@@ -1114,7 +1114,7 @@ EXECUTION_BLOCKED
 EXECUTION_FAILED
 ```
 
-Adding evidence alone does not automatically create a new analysis version.
+Menambahkan evidence saja tidak otomatis membuat analysis version baru.
 
 ---
 
@@ -1171,7 +1171,7 @@ case_status = AI_ANALYSIS
 → re-analysis starts after commit
 ```
 
-If the business re-analysis quota is already exhausted:
+Jika business re-analysis quota sudah habis:
 
 ```text
 CHECKER_REJECTED is still persisted
@@ -1262,7 +1262,7 @@ Hasil normal:
 case_status = AI_ANALYSIS
 ```
 
-If re-analysis quota is exhausted:
+Jika re-analysis quota habis:
 
 ```text
 SIGNER_REJECTED remains persisted
@@ -1353,7 +1353,7 @@ Hasil normal:
 case_status = AI_ANALYSIS
 ```
 
-If re-analysis quota is exhausted:
+Jika re-analysis quota habis:
 
 ```text
 execution BLOCKED/FAILED result + evidence remain persisted
@@ -1413,7 +1413,7 @@ Response:
 
 ## POST `/policies`
 
-Otorisasi: `ADMIN` only.
+Otorisasi: hanya `ADMIN`.
 
 Request:
 
@@ -1433,7 +1433,7 @@ Request:
 
 ## POST `/policies/{policy_id}/versions`
 
-Otorisasi: `ADMIN` only.
+Otorisasi: hanya `ADMIN`.
 
 Request:
 
@@ -1503,13 +1503,13 @@ index_status = PROCESSING
 AND now() - index_started_at > POLICY_INDEX_LEASE_SECONDS
 ```
 
-It allows ADMIN UI to offer a safe recovery action without duplicating backend lease logic.
+Field ini memungkinkan UI ADMIN menawarkan recovery action yang aman tanpa menduplikasi backend lease logic.
 
 ---
 
 ## POST `/policies/{policy_id}/versions/{version_id}/activate`
 
-Otorisasi: `ADMIN` only.
+Otorisasi: hanya `ADMIN`.
 
 Request:
 
@@ -1517,7 +1517,7 @@ Request:
 {}
 ```
 
-Successful response:
+Response berhasil:
 
 ```json
 {
@@ -1539,9 +1539,9 @@ effective_from IS NULL OR effective_from <= now()
 effective_until IS NULL OR effective_until > now()
 ```
 
-Future-effective and expired versions cannot be activated in MVP. There is no scheduled activation.
+Version future-effective dan expired tidak dapat diaktifkan pada MVP. Tidak ada scheduled activation.
 
-Behavior when indexing is required:
+Perilaku saat indexing diperlukan:
 
 ```text
 claim index_attempt_id
@@ -1580,7 +1580,7 @@ lease age > POLICY_INDEX_LEASE_SECONDS
 → old attempt cannot finalize because its token no longer matches
 ```
 
-If the current attempt fails:
+Jika attempt saat ini gagal:
 
 ```text
 target.status       = DRAFT
@@ -1590,11 +1590,11 @@ target.index_error  = safe diagnostic summary
 current ACTIVE version remains unchanged
 ```
 
-Indexing/Vertex calls do not run inside an open database transaction.
+Indexing/Vertex call tidak dijalankan di dalam open database transaction.
 
-Only `ACTIVE + READY + effective` policy versions are eligible for retrieval.
+Hanya policy version `ACTIVE + READY + effective` yang eligible untuk retrieval.
 
-MVP does not expose an endpoint to mutate DRAFT policy content after creation. A changed policy body is created as a new policy version.
+MVP tidak menyediakan endpoint untuk mengubah content DRAFT policy setelah dibuat. Perubahan policy body dibuat sebagai policy version baru.
 
 ---
 
@@ -1639,7 +1639,7 @@ Response:
 }
 ```
 
-Escalation-related safe metadata may include:
+Safe metadata terkait escalation dapat mencakup:
 
 ```json
 {
@@ -1789,7 +1789,7 @@ DRAFT
 + transactional outbox AI_ANALYSIS_REQUESTED
 ```
 
-The API returns after the database transaction commits; Gemini runs asynchronously through RabbitMQ.
+API mengembalikan response setelah database transaction commit; Gemini berjalan asynchronous melalui RabbitMQ.
 
 ## Analysis Berhasil
 
