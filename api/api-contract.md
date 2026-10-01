@@ -686,15 +686,44 @@ Response:
 
 ## POST `/cases/{case_id}/evidences`
 
-Request:
+User-created evidence request:
 
 ```json
 {
+  "actor_role": "CHECKER",
   "evidence_type": "COMMENT",
   "title": "Additional context",
   "content": "Upstream batch arrived 20 minutes late."
 }
 ```
+
+Authorization:
+
+```text
+DRAFT               → MAKER only
+CHECKING             → any active case participant
+SIGNING              → any active case participant
+EXECUTION            → any active case participant
+ESCALATION_REQUIRED  → any active case participant
+
+SUBMITTED            → forbidden
+AI_ANALYSIS           → forbidden
+DONE                  → forbidden
+CLOSED                → forbidden
+```
+
+Backend validates `actor_role` against the authenticated user's active case assignment.
+
+Client does not set authoritative `source_type`. Backend derives:
+
+```text
+source_user_id = authenticated user
+source_type    = validated actor_role
+```
+
+`SYSTEM` cannot be selected through this endpoint.
+
+Adding evidence does not change case status and does not automatically trigger re-analysis.
 
 ---
 
@@ -704,6 +733,7 @@ Request:
 
 ```json
 {
+  "actor_role": "CHECKER",
   "file_name": "settlement-log.pdf",
   "content_type": "application/pdf"
 }
@@ -728,11 +758,14 @@ Request:
 
 ```json
 {
+  "actor_role": "CHECKER",
   "file_key": "cases/uuid/evidence/uuid-settlement-log.pdf",
   "title": "Settlement Log",
   "evidence_type": "DOCUMENT"
 }
 ```
+
+The same evidence state/role authorization applies to both signed-URL issuance and final file-evidence registration. Backend revalidates authorization at registration time because case state may have changed after the upload URL was issued.
 
 ---
 
