@@ -1271,7 +1271,10 @@ Tujuan:
 Prevent duplicate transition
 Prevent concurrent invalid approval
 Prevent race on current_analysis_id
+Prevent participant-assignment vs user-deactivation race
 ```
+
+Participant assignment and ACTIVE→INACTIVE user mutation must serialize on the target user row (or equivalent transaction lock) so an INACTIVE user can never become an active case participant.
 
 ---
 
