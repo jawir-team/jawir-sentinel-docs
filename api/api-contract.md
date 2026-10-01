@@ -356,6 +356,14 @@ Request:
 
 Authorization: `ADMIN` only.
 
+Safety invariant:
+
+```text
+The system must always retain at least one ACTIVE ADMIN.
+```
+
+A PATCH that would demote or inactivate the **last ACTIVE ADMIN** is rejected with `409 INVALID_STATE_TRANSITION`. This includes self-demotion/self-deactivation when the caller is the last ACTIVE ADMIN.
+
 Request:
 
 ```json
@@ -764,6 +772,7 @@ Response:
       "title": "Additional context",
       "content": "Upstream batch arrived 20 minutes late.",
       "file_path": null,
+      "mime_type": null,
       "created_at": "2026-10-01T10:00:00Z"
     }
   ]
