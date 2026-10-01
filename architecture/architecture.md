@@ -606,6 +606,18 @@ policy_versions.status
 executions.status
 ```
 
+`cases.current_analysis_id` is **not** the latest attempt pointer. It means:
+
+```text
+latest COMPLETED analysis
+with PASS / PASS_WITH_WARNING verification
+that became eligible for human review
+```
+
+A newer FAILED analysis may exist while `current_analysis_id` still points to the previous successful analysis, or remains NULL if no analysis has ever completed successfully.
+
+Latest attempt is derived from the highest persisted `ai_analyses.version`.
+
 Data ini dapat berubah sesuai workflow.
 
 ---
@@ -935,17 +947,21 @@ Preserve schema-valid analysis output that was actually produced
 Persist verification_status = FAIL
 Persist verification_notes
 Do not update current_analysis_id
-Do not enter Checker review
+Audit AI_ANALYSIS_FAILED with failure_type = VERIFIER_FAIL
+Apply ANALYSIS_FAILED
+Transition AI_ANALYSIS → ESCALATION_REQUIRED
 ```
 
-If analysis fails before schema-valid output exists:
+If technical retry is exhausted before usable analysis exists:
 
 ```text
 Persist analysis status = FAILED
 Leave unavailable result fields NULL
 Do not fabricate policy_status / quality / uncertainty / verification result
 Do not update current_analysis_id
-Do not enter Checker review
+Audit AI_ANALYSIS_FAILED with failure_type = TECHNICAL_RETRY_EXHAUSTED
+Apply ANALYSIS_FAILED
+Transition AI_ANALYSIS → ESCALATION_REQUIRED
 ```
 
 Persistence meaning:
@@ -1296,6 +1312,20 @@ actor_id
 
 Policy event tidak menggunakan fake `case_id`. Pada POLICY scope, `actor_role` adalah NULL; authorization admin tetap berasal dari `users.is_admin`, bukan role workflow baru.
 
+Case AI failure reason is stored in audit metadata rather than new case columns:
+
+```text
+AI_ANALYSIS_FAILED
+metadata.failure_type =
+  VERIFIER_FAIL
+  | TECHNICAL_RETRY_EXHAUSTED
+
+REANALYSIS_LIMIT_REACHED
+metadata includes:
+  latest_analysis_version
+  max_reanalysis
+```
+
 Event example:
 
 ```text
@@ -1430,10 +1460,21 @@ After retry exhaustion:
 ```text
 analysis → FAILED
 audit AI_ANALYSIS_FAILED
+failure_type = TECHNICAL_RETRY_EXHAUSTED
+ANALYSIS_FAILED
 case → ESCALATION_REQUIRED
 ```
 
-Verifier `FAIL` is not a technical retry condition.
+Verifier `FAIL` is not a technical retry condition:
+
+```text
+verification_status = FAIL
+analysis → FAILED
+audit AI_ANALYSIS_FAILED
+failure_type = VERIFIER_FAIL
+ANALYSIS_FAILED
+case → ESCALATION_REQUIRED
+```
 
 Maximum re-analysis:
 
@@ -1441,40 +1482,51 @@ Maximum re-analysis:
 MAX_REANALYSIS = 3
 ```
 
-Jika limit tercapai:
+If a governed business trigger requests another analysis after the quota is exhausted:
 
 ```text
-ESCALATION_REQUIRED
+do not allocate a new analysis version
+audit REANALYSIS_LIMIT_REACHED
+case → ESCALATION_REQUIRED
 ```
 
 ---
 
 # 32. AI Failure Handling
 
-Failure types:
+Case-analysis terminal escalation causes are intentionally limited to:
 
 ```text
-Vertex AI unavailable
-Timeout
-Invalid structured output
-Verifier failure
-Embedding generation failure
-Policy indexing failure before activation
+VERIFIER_FAIL
+TECHNICAL_RETRY_EXHAUSTED
+REANALYSIS_LIMIT_REACHED
 ```
+
+Technical failures such as Vertex unavailability, timeout, or retryable invalid structured output first consume `AI_TECHNICAL_MAX_RETRIES`. Only exhaustion becomes `TECHNICAL_RETRY_EXHAUSTED`.
+
+`POLICY_CONFLICT` is analysis/verifier information, not a direct workflow transition. It only escalates when verification resolves to `FAIL`.
+
+Embedding/policy-indexing failure belongs to policy activation lifecycle and does not directly transition a case.
 
 Case tidak dihapus atau di-reset.
 
-Failure state dicatat.
-
-AI analysis dapat:
+`ESCALATION_REQUIRED` is a stopped state in MVP:
 
 ```text
-retry
-or
-escalate
-```
+allowed:
+- view
+- history
+- analysis history
+- add evidence
+- close
 
-sesuai configured limit.
+not available:
+- resume
+- generic retry/re-analyze
+- approve/reject/sign/execute
+- participant mutation
+- core case mutation
+```
 
 ---
 
@@ -2016,7 +2068,10 @@ Invariant berikut harus selalu benar:
 25. Manual/generic re-analysis is not exposed in MVP; re-analysis requires a governed business trigger.
 26. Evidence actor/source is validated server-side; client cannot self-assert SYSTEM evidence.
 27. User evidence writes never transition workflow state directly.
-28. Docs define the contract; FE and BE implement it.
+28. current_analysis_id points only to the latest reviewable COMPLETED analysis; FAILED attempts do not replace it.
+29. AI terminal failure causes are VERIFIER_FAIL or TECHNICAL_RETRY_EXHAUSTED; quota exhaustion is REANALYSIS_LIMIT_REACHED.
+30. ESCALATION_REQUIRED has no resume path in MVP.
+31. Docs define the contract; FE and BE implement it.
 ```
 
 ---
