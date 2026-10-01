@@ -92,7 +92,7 @@ Non-required Checker tidak menahan completion bila belum memberi decision. Namun
 
 Signer bertanggung jawab untuk:
 
-- memeriksa current analysis;
+- memeriksa analysis saat ini;
 - memeriksa Checker decisions;
 - memeriksa recommendation;
 - memeriksa policy reference;
@@ -346,7 +346,7 @@ User tidak dapat memberikan Checker/Signer decision pada state ini.
 
 ## 6.4 CHECKING
 
-Current AI analysis siap direview.
+Analysis AI saat ini siap direview.
 
 Required Checker dapat:
 
@@ -371,7 +371,7 @@ CHECKING → AI_ANALYSIS
 
 ## 6.5 SIGNING
 
-Seluruh required Checker sudah approve current analysis.
+Seluruh required Checker sudah approve analysis saat ini.
 
 Signer dapat:
 
@@ -396,7 +396,7 @@ SIGNING → AI_ANALYSIS
 
 ## 6.6 EXECUTION
 
-Current analysis telah mendapat authorization dari Signer.
+Analysis saat ini telah mendapat authorization dari Signer.
 
 Assigned Executer melakukan action.
 
@@ -1079,7 +1079,7 @@ no AI call
 
 Analysis baru memuat ulang evidence saat ini dan policy ACTIVE + READY yang berlaku.
 
-Technical RabbitMQ redelivery or provider retry does not allocate another business analysis version and does not consume `MAX_REANALYSIS`.
+Technical RabbitMQ redelivery atau provider retry tidak membuat business analysis version baru dan tidak mengonsumsi `MAX_REANALYSIS`.
 
 ---
 
@@ -1127,7 +1127,7 @@ current_analysis_id = v1 COMPLETED
 latest analysis attempt = v2 FAILED
 ```
 
-Latest attempt ditentukan dari `ai_analyses.version` tertinggi yang tersimpan, bukan dari `current_analysis_id`.
+Attempt terbaru ditentukan dari `ai_analyses.version` tertinggi yang tersimpan, bukan dari `current_analysis_id`.
 
 ---
 
@@ -1161,7 +1161,7 @@ STALE_ANALYSIS
 
 Workflow tidak berubah.
 
-Frontend harus refetch current case dan current analysis.
+Frontend harus refetch case dan analysis saat ini.
 
 Approval tidak boleh di-retry otomatis.
 
@@ -1207,7 +1207,7 @@ Approval valid hanya jika:
 decision.analysis_id = cases.current_analysis_id
 ```
 
-Decision dari analysis lama tetap disimpan untuk audit tetapi tidak memiliki authority terhadap current analysis.
+Decision dari analysis lama tetap disimpan untuk audit tetapi tidak memiliki kewenangan terhadap analysis saat ini.
 
 ---
 
@@ -1227,7 +1227,7 @@ Tetapi jika re-analysis terjadi:
 New analysis uses current applicable ACTIVE + READY policy
 ```
 
-Current policy version tidak mengganti reference pada historical analysis.
+Policy version saat ini tidak mengganti reference pada analysis historis.
 
 ---
 
@@ -1294,7 +1294,7 @@ Rationale:
 
 Strict SoD ensures one active workflow role per user on a case.
 
-For user-created evidence, client does **not** send `actor_role` or authoritative `source_type`.
+Untuk user-created evidence, client **tidak** mengirim `actor_role` atau authoritative `source_type`.
 
 Backend derives:
 
@@ -1303,13 +1303,13 @@ source_user_id = authenticated user
 source_type    = user's single ACTIVE participant role
 ```
 
-If the authenticated user has no active participant assignment for the case, evidence creation is forbidden.
+Jika authenticated user tidak memiliki active participant assignment pada case, pembuatan evidence ditolak.
 
 `SYSTEM` evidence hanya dapat dibuat oleh internal backend process dan tidak dapat dipilih melalui user-facing evidence endpoint.
 
 ## 24.3 Dampak Evidence terhadap Workflow
 
-Evidence lama tidak dihapus dari historical decision context.
+Evidence lama tidak dihapus dari konteks decision historis.
 
 Menambahkan evidence **tidak** mengubah case state dan **tidak** otomatis memicu re-analysis.
 
@@ -1394,7 +1394,7 @@ Resolved externally
 No action required
 ```
 
-Close mutation harus menggunakan current-state validation dan row locking.
+Mutation Close harus menggunakan validasi state saat ini dan row locking.
 
 Close safety guard:
 
@@ -1437,7 +1437,7 @@ Audit CASE_CLOSED
 case → CLOSED
 ```
 
-Setelah case menjadi `CLOSED`, asynchronous AI completion atau business action lain tidak boleh membuka atau memindahkan state case kembali. Analysis/execution record yang sudah terbentuk tetap dipertahankan sebagai historical record dan tidak otomatis diubah menjadi successful result.
+Setelah case menjadi `CLOSED`, asynchronous AI completion atau business action lain tidak boleh membuka atau memindahkan state case kembali. Record analysis/execution yang sudah terbentuk tetap dipertahankan sebagai record historis dan tidak otomatis diubah menjadi hasil sukses.
 
 `CLOSED` bukan execution success.
 
@@ -1534,7 +1534,7 @@ malformed model response yang di-retry dalam analysis cycle yang sama
 
 Satu business analysis cycle hanya memperoleh satu `ai_analyses.version`. Retry teknis tetap berada pada cycle/version yang sama.
 
-Jika seluruh technical attempt habis tanpa usable result, current analysis menjadi `FAILED`, `AI_ANALYSIS_FAILED` diaudit, dan case masuk `ESCALATION_REQUIRED`.
+Jika seluruh technical attempt habis tanpa hasil yang dapat digunakan, analysis saat ini menjadi `FAILED`, `AI_ANALYSIS_FAILED` diaudit, dan case masuk `ESCALATION_REQUIRED`.
 
 Re-analysis quota exhaustion:
 
@@ -1675,7 +1675,7 @@ Audit event bersifat append-only pada application layer.
 
 Critical workflow mutation harus atomic.
 
-Example Checker Reject with re-analysis quota available:
+Contoh Checker Reject ketika quota re-analysis tersedia:
 
 ```text
 BEGIN
@@ -1694,11 +1694,11 @@ Insert unique PENDING outbox AI_ANALYSIS_REQUESTED
 COMMIT
 ```
 
-The HTTP request ends after commit. `sentinel-worker` later dispatches the durable outbox event to RabbitMQ and processes the exact persisted analysis.
+HTTP request selesai setelah commit. `sentinel-worker` kemudian mengirim durable outbox event ke RabbitMQ dan memproses analysis yang sudah dipersist.
 
-If quota is exhausted, the same transaction keeps the REJECT decision/feedback, audits `REANALYSIS_LIMIT_REACHED`, transitions to `ESCALATION_REQUIRED`, and creates no analysis/outbox row.
+Jika quota habis, transaction yang sama tetap menyimpan REJECT decision/feedback, mencatat `REANALYSIS_LIMIT_REACHED`, memindahkan case ke `ESCALATION_REQUIRED`, dan tidak membuat analysis/outbox row baru.
 
-RabbitMQ and Vertex network calls are never executed inside the business transaction.
+Network call ke RabbitMQ dan Vertex tidak pernah dijalankan di dalam business transaction.
 
 ---
 
@@ -1923,14 +1923,14 @@ Frontend implementation:
 jawir-sentinel-fe/README.md
 ```
 
-Dokumen ini menjadi source of truth untuk workflow behavior JAWIR Sentinel MVP.
+Dokumen ini menjadi sumber kebenaran untuk perilaku workflow JAWIR Sentinel MVP.
 
 
 ---
 
 # 41. Keamanan Penonaktifan User
 
-Because participant assignments are frozen after submit, an ACTIVE participant on a non-terminal case must remain an ACTIVE Sentinel user.
+Karena participant assignment dibekukan setelah submit, ACTIVE participant pada case non-terminal harus tetap menjadi ACTIVE Sentinel user.
 
 ```text
 ADMIN attempts ACTIVE → INACTIVE
@@ -1940,4 +1940,4 @@ target user has ACTIVE participant on case not DONE/CLOSED?
   no  → allow
 ```
 
-If the user must be disabled, affected cases must first reach DONE or be safely CLOSED through the normal case workflow. System-role changes do not grant or remove case workflow authority.
+Jika user harus dinonaktifkan, seluruh case yang terdampak harus lebih dulu mencapai DONE atau di-CLOSE dengan aman melalui workflow normal. Perubahan system role tidak menambah atau mengurangi kewenangan workflow pada case.
