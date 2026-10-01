@@ -1222,6 +1222,32 @@ REFERENCE
 EXECUTION_RESULT
 ```
 
+User evidence authorization is state-aware:
+
+```text
+DRAFT               → Maker only
+CHECKING             → any active participant
+SIGNING              → any active participant
+EXECUTION            → any active participant
+ESCALATION_REQUIRED  → any active participant
+
+SUBMITTED / AI_ANALYSIS / DONE / CLOSED
+→ no user evidence mutation
+```
+
+User request carries `actor_role` as acting intent. Backend validates that the authenticated user has that active case assignment, then derives:
+
+```text
+source_user_id
+source_type
+```
+
+`SYSTEM` evidence is internal-only and cannot be selected by the client.
+
+Evidence writes are append-only for MVP and do not directly mutate workflow state.
+
+Evidence added during CHECKING/SIGNING/EXECUTION may influence the next governed action, but only Checker REJECT, Signer REJECT, Execution BLOCKED, or Execution FAILED can trigger a new analysis version.
+
 AI menggunakan evidence sebagai context.
 
 Evidence tidak memiliki policy authority.
@@ -1988,7 +2014,9 @@ Invariant berikut harus selalu benar:
 23. In-flight participant replacement is not supported; close + new case is required.
 24. Maker is the case creator and its assignment is immutable.
 25. Manual/generic re-analysis is not exposed in MVP; re-analysis requires a governed business trigger.
-26. Docs define the contract; FE and BE implement it.
+26. Evidence actor/source is validated server-side; client cannot self-assert SYSTEM evidence.
+27. User evidence writes never transition workflow state directly.
+28. Docs define the contract; FE and BE implement it.
 ```
 
 ---
