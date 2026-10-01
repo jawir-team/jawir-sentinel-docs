@@ -1470,7 +1470,7 @@ policy_version_id
 actor_id
 ```
 
-Policy event tidak menggunakan fake `case_id`. Pada POLICY scope, `actor_role` adalah NULL; authorization admin tetap berasal dari `users.is_admin`, bukan role workflow baru.
+Policy event tidak menggunakan fake `case_id`. Pada POLICY scope, `actor_role` adalah NULL; authorization admin berasal dari `users.system_role = ADMIN`, bukan role workflow.
 
 Case AI failure reason is stored in audit metadata rather than new case columns:
 
