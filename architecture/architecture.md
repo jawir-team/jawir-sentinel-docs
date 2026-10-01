@@ -673,22 +673,55 @@ query        → gemini-embedding-001 / RETRIEVAL_QUERY    / 768
 Flow:
 
 ```text
-Case
+Case / Retrieval Context
   ↓
-Extract Retrieval Context
-  ↓
-Filter by Case Type / Domain
+Receive case_type_id + retrieval_text
   ↓
 Filter ACTIVE + Effective Policy
   ↓
+Filter matching case_type_id OR generic policy
+  ↓
 Generate Query Embedding
   ↓
-Vector Similarity Search
+HNSW Cosine Similarity Search
   ↓
-Top Relevant Chunks
+Top 8 Chunks
   ↓
-Build Policy Context
+Return Chunks + Provenance + Score
 ```
+
+MVP candidate policy rule:
+
+```text
+policy_versions.status = ACTIVE
+
+AND
+effective_from <= now() OR effective_from IS NULL
+
+AND
+effective_until > now() OR effective_until IS NULL
+
+AND
+(
+  policies.case_type_id = cases.case_type_id
+  OR policies.case_type_id IS NULL
+)
+```
+
+`policies.domain` tetap disimpan sebagai metadata, tetapi **bukan hard filter** pada MVP karena case tidak memiliki domain field.
+
+Retrieval boundary:
+
+- Context Builder bertanggung jawab membentuk `retrieval_text`.
+- Policy Retriever menerima `case_type_id` + `retrieval_text`.
+- Retriever tidak merakit business context sendiri.
+- Query embedding menggunakan `gemini-embedding-001`, task `RETRIEVAL_QUERY`, dimension 768.
+- Search menggunakan HNSW + cosine distance.
+- `POLICY_RETRIEVAL_TOP_K=8`.
+- MVP tidak menggunakan hard similarity threshold.
+- MVP tidak menggunakan reranker kedua.
+- Retriever mengembalikan chunk + complete provenance + distance/relevance score.
+- Retriever tidak menentukan `POLICY_FOUND`, `NO_POLICY_FOUND`, `INSUFFICIENT_EVIDENCE`, atau `POLICY_CONFLICT`; status tersebut ditentukan pada analysis/verifier layer.
 
 Policy source of authority:
 
