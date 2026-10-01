@@ -1892,6 +1892,11 @@ AI Orchestrator
 ```text
 Backend
   │
+  ├── Short DB transaction
+  │   ├── Validate AI_ANALYSIS
+  │   ├── Allocate GENERATING analysis version
+  │   └── Audit AI_ANALYSIS_STARTED
+  │
   ▼
 Context Builder
   │
