@@ -1134,7 +1134,7 @@ Evidence tidak memiliki policy authority.
 
 # 28. Audit Architecture
 
-Audit data disimpan pada:
+Audit data disimpan pada satu table:
 
 ```text
 audit_events
@@ -1144,7 +1144,35 @@ Audit sifatnya:
 
 ```text
 append-only
+scoped
+historically traceable
 ```
+
+Supported scope:
+
+```text
+CASE
+POLICY
+```
+
+CASE scope digunakan untuk workflow event dan dapat mereferensikan:
+
+```text
+case_id
+analysis_id
+actor_id
+actor_role
+```
+
+POLICY scope digunakan untuk policy lifecycle event dan dapat mereferensikan:
+
+```text
+policy_id
+policy_version_id
+actor_id
+```
+
+Policy event tidak menggunakan fake `case_id`. Pada POLICY scope, `actor_role` adalah NULL; authorization admin tetap berasal dari `users.is_admin`, bukan role workflow baru.
 
 Event example:
 
@@ -1156,9 +1184,14 @@ CHECKER_REJECTED
 SIGNER_APPROVED
 EXECUTION_BLOCKED
 CASE_DONE
+
+POLICY_CREATED
+POLICY_VERSION_CREATED
+POLICY_ACTIVATED
+POLICY_SUPERSEDED
 ```
 
-Audit dapat merekonstruksi:
+Case audit dapat merekonstruksi:
 
 ```text
 Who
@@ -1167,6 +1200,19 @@ Against Which Analysis
 At What Time
 With What Result
 ```
+
+Policy audit dapat merekonstruksi:
+
+```text
+Who
+Changed Which Policy / Version
+At What Time
+With What Lifecycle Result
+```
+
+`GET /cases/{case_id}/history` hanya membaca `scope_type = CASE`.
+
+Policy history endpoint tidak wajib untuk MVP; policy audit tetap dipersist untuk accountability.
 
 ---
 
