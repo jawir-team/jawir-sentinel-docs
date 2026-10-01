@@ -154,6 +154,81 @@ Rules divalidasi oleh backend.
 
 Frontend dapat membantu mencegah invalid assignment pada UI, tetapi backend tetap menjadi authority.
 
+## 3.1 Participant Cardinality
+
+Participant contract per case:
+
+```text
+MAKER
+exactly 1 active
+creator of the case
+immutable assignment
+
+CHECKER
+1..N active
+at least 1 required Checker before submit
+
+SIGNER
+exactly 1 active before submit
+
+EXECUTER
+exactly 1 active before submit
+```
+
+`MAKER = EXECUTER` tetap diperbolehkan.
+
+## 3.2 Governance Snapshot / Submission Freeze Rule
+
+Selama `DRAFT`:
+
+```text
+case core data     editable by Maker
+Checker assignment editable
+Signer assignment  editable
+Executer assignment editable
+evidence           may be added
+```
+
+Maker dibuat otomatis dari case creator dan tidak dapat di-unassign atau diganti.
+
+Saat `SUBMIT`, backend memvalidasi participant cardinality + SoD dan participant set menjadi **frozen governance context** untuk case tersebut.
+
+Setelah case meninggalkan `DRAFT`:
+
+```text
+case core data      read-only
+Maker               frozen
+Checker(s)          frozen
+Signer              frozen
+Executer            frozen
+
+evidence            may continue to grow
+analysis             versioned
+decisions            append-only
+executions           historical attempts
+audit                append-only
+```
+
+Participant assignment/unassignment setelah submit tidak diperbolehkan.
+
+Jika participant harus diganti karena salah assignment, tidak tersedia, pindah tanggung jawab, atau alasan lain:
+
+```text
+Close existing case with reason
+↓
+Existing case remains CLOSED and historically intact
+↓
+Maker creates a new case
+↓
+Assign new participant set
+↓
+Submit new case
+```
+
+MVP tidak memiliki reopen, participant replacement, atau role transfer pada case yang sudah berjalan.
+
+New case dapat menambahkan `REFERENCE` evidence yang merujuk case lama bila dibutuhkan untuk traceability, tetapi tidak ada parent/replacement relation khusus pada schema MVP.
+
 ---
 
 # 4. Main Workflow
@@ -472,7 +547,12 @@ Preconditions:
 authenticated user = Maker
 case status = DRAFT
 case detail valid
-required participant available
+
+exactly 1 active Maker
+at least 1 active required Checker
+exactly 1 active Signer
+exactly 1 active Executer
+
 segregation of duties valid
 ```
 
@@ -481,9 +561,11 @@ Flow:
 ```text
 Validate Case
 ↓
-Validate Participants
+Validate Participant Cardinality
 ↓
 Validate Segregation of Duties
+↓
+Freeze Case Core Data + Participant Set
 ↓
 Persist Submission
 ↓
@@ -1162,6 +1244,8 @@ Setelah case menjadi `CLOSED`, asynchronous AI completion atau business action l
 
 `CLOSED` bukan execution success.
 
+Jika case perlu mengganti participant setelah submission, case lama harus di-close dengan alasan yang jelas dan Maker membuat case baru. Participant pada case lama tidak diganti.
+
 ---
 
 # 27. DONE vs CLOSED
@@ -1567,6 +1651,9 @@ Invariant berikut harus selalu benar:
 10. AI tidak dapat mengubah workflow state.
 11. Frontend tidak dapat mengubah workflow state secara langsung.
 12. Segregation of duties selalu divalidasi backend.
+13. Case core data dan participant set immutable setelah meninggalkan DRAFT.
+14. Participant replacement pada in-flight case tidak tersedia; perubahan personel membutuhkan close + new case.
+15. Maker assignment adalah creator dan immutable.
 ```
 
 ---
