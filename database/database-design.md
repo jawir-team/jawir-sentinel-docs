@@ -639,6 +639,28 @@ VECTOR INDEX(embedding)
 
 Vector dimension mengikuti embedding model yang digunakan backend.
 
+MVP chunking contract:
+
+```text
+strategy      = section-aware + paragraph-aware
+max_chunk     = 600 tokens
+overlap       = 100 tokens
+chunk_index   = global sequential per policy version
+```
+
+Chunking rules:
+
+- heading detector mendukung Markdown heading dan numbered heading;
+- paragraph boundary digunakan sebagai fallback;
+- section yang tidak melebihi 600 tokens disimpan sebagai satu chunk;
+- section yang lebih besar dipecah dengan target maksimum 600 tokens dan overlap 100 tokens;
+- overlap hanya diterapkan ketika satu section menghasilkan lebih dari satu chunk;
+- `section` menyimpan heading terdekat bila tersedia;
+- `chunk_index` deterministic dan tidak reset per section;
+- reprocessing exact policy version mengganti seluruh derived chunks version tersebut, bukan append.
+
+`policy_versions.content` adalah source content. `policy_chunks` adalah derived retrieval data.
+
 Policy chunk hanya digunakan dari policy version yang authoritative.
 
 ---
