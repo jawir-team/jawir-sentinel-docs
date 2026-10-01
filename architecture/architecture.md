@@ -702,7 +702,7 @@ policy_versions.status
 executions.status
 ```
 
-`cases.current_analysis_id` is **not** the latest attempt pointer. It means:
+`cases.current_analysis_id` **bukan** pointer untuk attempt terbaru. Artinya:
 
 ```text
 latest COMPLETED analysis
