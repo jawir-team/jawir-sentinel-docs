@@ -544,6 +544,8 @@ case.status != DRAFT
 
 An `INACTIVE` participant row hanya dapat dihasilkan dari DRAFT-stage unassignment/replacement. Setelah submit, participant records dipertahankan sebagai frozen governance context.
 
+Because `UNIQUE(case_id, user_id, role)` keeps one row per user-role, re-assigning the same previously-INACTIVE user/role during DRAFT reactivates that existing row instead of inserting a duplicate. Reactivation refreshes assignment metadata and clears `unassigned_at`; audit events preserve assignment/unassignment history.
+
 Segregation of duties tetap divalidasi di application layer.
 
 ---
