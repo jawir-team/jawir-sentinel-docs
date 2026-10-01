@@ -364,6 +364,18 @@ The system must always retain at least one ACTIVE ADMIN.
 
 A PATCH that would demote or inactivate the **last ACTIVE ADMIN** is rejected with `409 INVALID_STATE_TRANSITION`. This includes self-demotion/self-deactivation when the caller is the last ACTIVE ADMIN.
 
+User deactivation guard:
+
+```text
+status ACTIVE → INACTIVE
+is forbidden while the target user has any ACTIVE case_participant
+on a non-terminal case.
+```
+
+Non-terminal means any case state except `DONE` and `CLOSED`.
+
+This prevents frozen workflow assignments from becoming unactionable. The case must finish or be safely closed first.
+
 Request:
 
 ```json
