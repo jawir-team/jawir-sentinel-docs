@@ -1924,3 +1924,20 @@ jawir-sentinel-fe/README.md
 ```
 
 Dokumen ini menjadi source of truth untuk workflow behavior JAWIR Sentinel MVP.
+
+
+---
+
+# 41. User Deactivation Safety
+
+Because participant assignments are frozen after submit, an ACTIVE participant on a non-terminal case must remain an ACTIVE Sentinel user.
+
+```text
+ADMIN attempts ACTIVE → INACTIVE
+↓
+target user has ACTIVE participant on case not DONE/CLOSED?
+  yes → reject
+  no  → allow
+```
+
+If the user must be disabled, affected cases must first reach DONE or be safely CLOSED through the normal case workflow. System-role changes do not grant or remove case workflow authority.
