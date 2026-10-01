@@ -2266,6 +2266,7 @@ Invariant berikut harus selalu benar:
 34. technical_retry_count is monotonic within a GENERATING analysis and prevents RabbitMQ redelivery from resetting the configured technical retry budget.
 35. GENERATING analysis worker-owned writes require the current worker_attempt_id; stale worker attempts cannot increment retry state or finalize.
 36. AI worker claim recovery uses worker_started_at + AI_WORKER_LEASE_SECONDS.
+37. At least one ACTIVE user with system_role = ADMIN must always remain; demoting/inactivating the last ACTIVE ADMIN is rejected by the application service.
 ```
 
 Invariant nomor 8 harus divalidasi di application layer karena FK standar tidak dapat memastikan cross-column same-case relationship secara langsung.
