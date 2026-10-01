@@ -1,6 +1,6 @@
-# JAWIR Sentinel API Contract
+# Kontrak API JAWIR Sentinel
 
-**Specification Version:** 1.0  
+**Versi Spesifikasi:** 1.0  
 **Status:** MVP Baseline  
 **Base Path:** `/api/v1`
 
@@ -34,7 +34,7 @@ Jika token tidak valid:
 
 ---
 
-## Authorization Model
+## Model Authorization
 
 System role:
 
@@ -63,9 +63,9 @@ Authorization matrix:
 
 ---
 
-# 2. Standard Response
+# 2. Response Standar
 
-## Success
+## Berhasil
 
 ```json
 {
@@ -100,9 +100,9 @@ Authorization matrix:
 
 ---
 
-# 3. Core Enum
+# 3. Enum Inti
 
-## Case Status
+## Status Case
 
 ```text
 DRAFT
@@ -150,7 +150,7 @@ APPROVE
 REJECT
 ```
 
-## Execution Status
+## Status Execution
 
 ```text
 IN_PROGRESS
@@ -159,7 +159,7 @@ BLOCKED
 FAILED
 ```
 
-## Policy Status
+## Status Policy
 
 ```text
 DRAFT
@@ -167,7 +167,7 @@ ACTIVE
 SUPERSEDED
 ```
 
-## Policy Index Status
+## Status Index Policy
 
 ```text
 NOT_STARTED
@@ -176,7 +176,7 @@ READY
 FAILED
 ```
 
-## Analysis Status
+## Status Analysis
 
 ```text
 GENERATING
@@ -184,7 +184,7 @@ COMPLETED
 FAILED
 ```
 
-## AI Policy Status
+## Status Policy AI
 
 ```text
 POLICY_FOUND
@@ -194,7 +194,7 @@ INSUFFICIENT_EVIDENCE
 POLICY_CONFLICT
 ```
 
-## Verification Status
+## Status Verifikasi
 
 ```text
 PASS
@@ -202,7 +202,7 @@ PASS_WITH_WARNING
 FAIL
 ```
 
-## Evidence Quality
+## Kualitas Evidence
 
 ```text
 LOW
@@ -220,7 +220,7 @@ HIGH
 
 ---
 
-# 4. Current User
+# 4. User Saat Ini
 
 ## GET `/me`
 
@@ -265,7 +265,7 @@ Response:
 
 ## POST `/units`
 
-Authorization: `ADMIN` only.
+Otorisasi: `ADMIN` only.
 
 Request:
 
@@ -337,7 +337,7 @@ Response:
 
 ## POST `/users`
 
-Authorization: `ADMIN` only.
+Otorisasi: `ADMIN` only.
 
 Request:
 
@@ -354,7 +354,7 @@ Request:
 
 ## PATCH `/users/{user_id}`
 
-Authorization: `ADMIN` only.
+Otorisasi: `ADMIN` only.
 
 Safety invariant:
 
@@ -410,7 +410,7 @@ Response:
 
 ## POST `/case-types`
 
-Authorization: `ADMIN` only.
+Otorisasi: `ADMIN` only.
 
 Request:
 
@@ -510,7 +510,7 @@ Response:
 
 ## GET `/cases/{case_id}`
 
-Authorization: active case participant or `ADMIN`. ADMIN read access does not grant workflow mutation authority.
+Otorisasi: active case participant or `ADMIN`. ADMIN read access does not grant workflow mutation authority.
 
 Response:
 
@@ -599,7 +599,7 @@ Response:
 }
 ```
 
-Preconditions:
+Prasyarat:
 
 ```text
 case.status = DRAFT
@@ -714,7 +714,7 @@ SIGNER
 EXECUTER
 ```
 
-Preconditions:
+Prasyarat:
 
 ```text
 case.status = DRAFT
@@ -812,7 +812,7 @@ User-created evidence request:
 }
 ```
 
-Authorization:
+Otorisasi:
 
 ```text
 DRAFT               → MAKER only
@@ -829,7 +829,7 @@ CLOSED                → forbidden
 
 Because strict SoD allows only one active workflow role per user on a case, client does not send `actor_role` or authoritative `source_type`.
 
-Backend derives:
+Backend melakukan derivasi:
 
 ```text
 source_user_id = authenticated user
@@ -935,7 +935,7 @@ Response:
 
 This endpoint resolves `cases.current_analysis_id`.
 
-Semantics:
+Semantik:
 
 ```text
 current_analysis_id
@@ -951,7 +951,7 @@ If `current_analysis_id` is NULL because no analysis has completed successfully,
 404 ANALYSIS_NOT_FOUND
 ```
 
-Client interpretation is state-aware: while the case is `AI_ANALYSIS`, this means no reviewable analysis exists yet and is a normal loading condition, not a missing-case page.
+Interpretasi client bergantung pada state: while the case is `AI_ANALYSIS`, this means no reviewable analysis exists yet and is a normal loading condition, not a missing-case page.
 
 Response:
 
@@ -1118,7 +1118,7 @@ Adding evidence alone does not automatically create a new analysis version.
 
 ---
 
-# 12. Checker Decision
+# 12. Decision Checker
 
 ## POST `/cases/{case_id}/checker-decisions`
 
@@ -1162,9 +1162,9 @@ Jika semua required Checker sudah approve:
 case_status = SIGNING
 ```
 
-If reject is accepted, the decision is persisted successfully.
+Jika reject diterima, decision dipersist dengan sukses.
 
-Normal result:
+Hasil normal:
 
 ```text
 case_status = AI_ANALYSIS
@@ -1181,11 +1181,11 @@ no new analysis version is created
 no AI call is triggered
 ```
 
-This is a successful business action, not an HTTP conflict.
+Ini adalah business action yang berhasil, bukan HTTP conflict.
 
 ---
 
-# 13. Checker Status
+# 13. Status Checker
 
 ## GET `/cases/{case_id}/checker-status`
 
@@ -1217,7 +1217,7 @@ Response:
 
 ---
 
-# 14. Signer Decision
+# 14. Decision Signer
 
 ## POST `/cases/{case_id}/signer-decision`
 
@@ -1254,9 +1254,9 @@ Response:
 }
 ```
 
-Reject is persisted successfully.
+Reject dipersist dengan sukses.
 
-Normal result:
+Hasil normal:
 
 ```text
 case_status = AI_ANALYSIS
@@ -1300,7 +1300,7 @@ Response:
 
 ## POST `/cases/{case_id}/executions/{execution_id}/result`
 
-### Success
+### Berhasil
 
 ```json
 {
@@ -1345,9 +1345,9 @@ Response:
 }
 ```
 
-For `BLOCKED` / `FAILED`, the execution result is always persisted if the request is otherwise valid.
+Untuk `BLOCKED` / `FAILED`, execution result selalu dipersist selama request valid.
 
-Normal result:
+Hasil normal:
 
 ```text
 case_status = AI_ANALYSIS
@@ -1413,7 +1413,7 @@ Response:
 
 ## POST `/policies`
 
-Authorization: `ADMIN` only.
+Otorisasi: `ADMIN` only.
 
 Request:
 
@@ -1433,7 +1433,7 @@ Request:
 
 ## POST `/policies/{policy_id}/versions`
 
-Authorization: `ADMIN` only.
+Otorisasi: `ADMIN` only.
 
 Request:
 
@@ -1509,7 +1509,7 @@ It allows ADMIN UI to offer a safe recovery action without duplicating backend l
 
 ## POST `/policies/{policy_id}/versions/{version_id}/activate`
 
-Authorization: `ADMIN` only.
+Otorisasi: `ADMIN` only.
 
 Request:
 
@@ -1531,7 +1531,7 @@ Successful response:
 }
 ```
 
-Preconditions:
+Prasyarat:
 
 ```text
 target.status = DRAFT
@@ -1598,7 +1598,7 @@ MVP does not expose an endpoint to mutate DRAFT policy content after creation. A
 
 ---
 
-# 18. Case History
+# 18. History Case
 
 ## GET `/cases/{case_id}/history`
 
@@ -1662,7 +1662,7 @@ or:
 }
 ```
 
-Raw provider payload, prompt/evidence content, stack trace, and credentials are never exposed through history metadata.
+Raw provider payload, prompt/evidence content, stack trace, dan credential tidak pernah diekspos melalui history metadata.
 
 ---
 
@@ -1695,7 +1695,7 @@ Response:
 
 ---
 
-# 20. Error Mapping
+# 20. Mapping Error
 
 | Error Code | HTTP Status |
 |---|---:|
@@ -1714,7 +1714,7 @@ Response:
 
 ---
 
-# 21. Concurrency Contract
+# 21. Kontrak Concurrency
 
 Decision request selalu membawa:
 
@@ -1752,7 +1752,7 @@ Approval tidak boleh di-retry otomatis.
 
 ---
 
-# 22. State Transition Contract
+# 22. Kontrak Transisi State
 
 Frontend tidak dapat meminta arbitrary status.
 
@@ -1778,7 +1778,7 @@ close
 
 ---
 
-# 23. Workflow Contract
+# 23. Kontrak Workflow
 
 ## Submit
 
@@ -1791,14 +1791,14 @@ DRAFT
 
 The API returns after the database transaction commits; Gemini runs asynchronously through RabbitMQ.
 
-## Analysis Success
+## Analysis Berhasil
 
 ```text
 AI_ANALYSIS
 → CHECKING
 ```
 
-## Analysis Terminal Failure
+## Kegagalan Terminal Analysis
 
 ```text
 AI_ANALYSIS
@@ -1811,7 +1811,7 @@ VERIFIER_FAIL
 TECHNICAL_RETRY_EXHAUSTED
 ```
 
-## Re-analysis Limit Reached
+## Batas Re-analysis Tercapai
 
 ```text
 governed reject/block/fail action succeeds
@@ -1819,7 +1819,7 @@ governed reject/block/fail action succeeds
 → ESCALATION_REQUIRED
 ```
 
-## All Required Checker Approve
+## Semua Required Checker Approve
 
 ```text
 CHECKING
@@ -1847,7 +1847,7 @@ SIGNING
 → AI_ANALYSIS
 ```
 
-## Execution Success
+## Execution Berhasil
 
 ```text
 EXECUTION
@@ -1863,7 +1863,7 @@ EXECUTION
 
 ---
 
-# 24. Contract Ownership
+# 24. Kepemilikan Kontrak
 
 Dokumen ini berada pada:
 
