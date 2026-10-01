@@ -776,7 +776,6 @@ User-created evidence request:
 
 ```json
 {
-  "actor_role": "CHECKER",
   "evidence_type": "COMMENT",
   "title": "Additional context",
   "content": "Upstream batch arrived 20 minutes late."
@@ -798,16 +797,18 @@ DONE                  → forbidden
 CLOSED                → forbidden
 ```
 
-Backend validates `actor_role` against the authenticated user's active case assignment.
+Because strict SoD allows only one active workflow role per user on a case, client does not send `actor_role` or authoritative `source_type`.
 
-Client does not set authoritative `source_type`. Backend derives:
+Backend derives:
 
 ```text
 source_user_id = authenticated user
-source_type    = validated actor_role
+source_type    = authenticated user's single ACTIVE case role
 ```
 
-`SYSTEM` cannot be selected through this endpoint.
+No active assignment → FORBIDDEN.
+
+`SYSTEM` is internal-only and cannot be selected through this endpoint.
 
 Adding evidence does not change case status and does not automatically trigger re-analysis.
 
@@ -819,7 +820,6 @@ Request:
 
 ```json
 {
-  "actor_role": "CHECKER",
   "file_name": "settlement-log.pdf",
   "mime_type": "application/pdf"
 }
@@ -844,7 +844,6 @@ Request:
 
 ```json
 {
-  "actor_role": "CHECKER",
   "file_key": "cases/uuid/evidence/uuid-settlement-log.pdf",
   "title": "Settlement Log",
   "evidence_type": "DOCUMENT"
@@ -852,6 +851,8 @@ Request:
 ```
 
 The same evidence state/role authorization applies to both signed-URL issuance and final file-evidence registration. Backend revalidates authorization at registration time because case state may have changed after the upload URL was issued.
+
+The source role is derived server-side from the authenticated user's unique active case assignment; no actor-role field is accepted from the client.
 
 MVP file MIME allowlist:
 
@@ -1678,7 +1679,6 @@ Response:
 | ANALYSIS_NOT_FOUND | 404 |
 | INVALID_STATE_TRANSITION | 409 |
 | STALE_ANALYSIS | 409 |
-| POLICY_CONFLICT | 409 |
 | POLICY_INDEXING_FAILED | 502 |
 | INTERNAL_ERROR | 500 |
 
