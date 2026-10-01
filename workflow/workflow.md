@@ -1266,7 +1266,7 @@ Existing analysis remains historically valid
 Tetapi jika re-analysis terjadi:
 
 ```text
-New analysis uses current applicable ACTIVE policy
+New analysis uses current applicable ACTIVE + READY policy
 ```
 
 Current policy version tidak mengganti reference pada historical analysis.
