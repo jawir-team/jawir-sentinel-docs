@@ -1374,9 +1374,36 @@ Short-lived transactions
 Retry external AI selectively
 Persist AI failure state
 Do not lose case on AI failure
-Bound re-analysis loop
+Bound technical retry loop
+Bound business re-analysis loop
 Preserve audit trail
 ```
+
+Technical AI retry configuration:
+
+```text
+AI_TECHNICAL_MAX_RETRIES=<non-negative integer>
+```
+
+The value is loaded from runtime environment into application config and is not hard-coded in orchestration logic.
+
+Semantics:
+
+```text
+total attempts = 1 initial attempt + AI_TECHNICAL_MAX_RETRIES
+```
+
+Technical retries stay inside the same business analysis version and do not consume `MAX_REANALYSIS`.
+
+After retry exhaustion:
+
+```text
+analysis → FAILED
+audit AI_ANALYSIS_FAILED
+case → ESCALATION_REQUIRED
+```
+
+Verifier `FAIL` is not a technical retry condition.
 
 Maximum re-analysis:
 
@@ -1700,6 +1727,7 @@ VERTEX_AI_MODEL
 VERTEX_EMBEDDING_MODEL
 
 MAX_REANALYSIS
+AI_TECHNICAL_MAX_RETRIES
 POLICY_RETRIEVAL_TOP_K
 ```
 
