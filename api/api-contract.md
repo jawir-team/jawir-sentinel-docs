@@ -787,6 +787,8 @@ Request:
 
 The same evidence state/role authorization applies to both signed-URL issuance and final file-evidence registration. Backend revalidates authorization at registration time because case state may have changed after the upload URL was issued.
 
+At registration, backend also validates that `file_key` belongs to the requested case evidence prefix and that the uploaded GCS object exists. Client cannot register an arbitrary object path as case evidence.
+
 ---
 
 # 11. AI Analyses
@@ -841,6 +843,8 @@ If `current_analysis_id` is NULL because no analysis has completed successfully,
 ```text
 404 ANALYSIS_NOT_FOUND
 ```
+
+Client interpretation is state-aware: while the case is `AI_ANALYSIS`, this means no reviewable analysis exists yet and is a normal loading condition, not a missing-case page.
 
 Response:
 
