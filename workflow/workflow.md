@@ -595,7 +595,7 @@ Input:
 ```text
 Current Case
 Current Evidence
-Current ACTIVE Policies
+Current ACTIVE + READY Policies
 Reviewer Feedback
 Execution Feedback
 Current Workflow State
@@ -999,7 +999,7 @@ AI_ANALYSIS
 ↓
 Build Current Context
 ↓
-Retrieve Current ACTIVE Policy
+Retrieve Current ACTIVE + READY Policy
 ↓
 Generate New Analysis Version
 ↓
