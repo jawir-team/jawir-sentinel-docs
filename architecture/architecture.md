@@ -1178,7 +1178,7 @@ Execution Blocked
 Execution Failed
 ```
 
-MVP sengaja tidak memiliki command re-analysis generic/manual. Evidence baru saja tidak otomatis membuat analysis version baru. Workflow hanya dapat masuk re-analysis melalui governed business event yang sudah ditentukan.
+MVP hanya mengenal empat governed trigger di atas. Tidak ada direct/generic re-analysis command. Evidence baru saja tidak otomatis membuat analysis version baru.
 
 Alur ketika quota tersedia:
 
