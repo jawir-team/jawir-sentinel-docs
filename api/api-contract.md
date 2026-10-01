@@ -364,8 +364,7 @@ Response:
   "data": {
     "id": "uuid",
     "case_number": "CASE-2026-000001",
-    "status": "DRAFT",
-    "index_status": "NOT_STARTED"
+    "status": "DRAFT"
   }
 }
 ```
@@ -789,6 +788,12 @@ Response:
       "version": 2,
       "status": "COMPLETED",
       "verification_status": "PASS_WITH_WARNING"
+    },
+    {
+      "id": "uuid",
+      "version": 3,
+      "status": "FAILED",
+      "verification_status": "FAIL"
     }
   ]
 }
@@ -1025,11 +1030,26 @@ Jika semua required Checker sudah approve:
 case_status = SIGNING
 ```
 
-Jika reject:
+If reject is accepted, the decision is persisted successfully.
+
+Normal result:
 
 ```text
 case_status = AI_ANALYSIS
+→ re-analysis starts after commit
 ```
+
+If the business re-analysis quota is already exhausted:
+
+```text
+CHECKER_REJECTED is still persisted
+REANALYSIS_LIMIT_REACHED is audited in the same business transaction
+case_status = ESCALATION_REQUIRED
+no new analysis version is created
+no AI call is triggered
+```
+
+This is a successful business action, not an HTTP conflict.
 
 ---
 
@@ -1102,10 +1122,20 @@ Response:
 }
 ```
 
-Reject response:
+Reject is persisted successfully.
+
+Normal result:
 
 ```text
 case_status = AI_ANALYSIS
+```
+
+If re-analysis quota is exhausted:
+
+```text
+SIGNER_REJECTED remains persisted
+case_status = ESCALATION_REQUIRED
+no new analysis version is created
 ```
 
 ---
@@ -1183,10 +1213,21 @@ Response:
 }
 ```
 
-For `BLOCKED` / `FAILED`:
+For `BLOCKED` / `FAILED`, the execution result is always persisted if the request is otherwise valid.
+
+Normal result:
 
 ```text
 case_status = AI_ANALYSIS
+```
+
+If re-analysis quota is exhausted:
+
+```text
+execution BLOCKED/FAILED result + evidence remain persisted
+case_status = ESCALATION_REQUIRED
+no new analysis version is created
+no AI call is triggered
 ```
 
 ---
@@ -1275,7 +1316,8 @@ Response:
   "data": {
     "id": "uuid",
     "version": "1.0",
-    "status": "DRAFT"
+    "status": "DRAFT",
+    "index_status": "NOT_STARTED"
   }
 }
 ```
@@ -1413,6 +1455,31 @@ Response:
 }
 ```
 
+Escalation-related safe metadata may include:
+
+```json
+{
+  "event_type": "AI_ANALYSIS_FAILED",
+  "metadata": {
+    "failure_type": "VERIFIER_FAIL"
+  }
+}
+```
+
+or:
+
+```json
+{
+  "event_type": "REANALYSIS_LIMIT_REACHED",
+  "metadata": {
+    "latest_analysis_version": 4,
+    "max_reanalysis": 3
+  }
+}
+```
+
+Raw provider payload, prompt/evidence content, stack trace, and credentials are never exposed through history metadata.
+
 ---
 
 # 19. Dashboard
@@ -1459,7 +1526,6 @@ Response:
 | INVALID_STATE_TRANSITION | 409 |
 | STALE_ANALYSIS | 409 |
 | POLICY_CONFLICT | 409 |
-| REANALYSIS_LIMIT_REACHED | 409 |
 | POLICY_INDEXING_FAILED | 502 |
 | AI_OUTPUT_INVALID | 502 |
 | AI_ANALYSIS_FAILED | 502 |
@@ -1545,6 +1611,27 @@ DRAFT
 ```text
 AI_ANALYSIS
 → CHECKING
+```
+
+## Analysis Terminal Failure
+
+```text
+AI_ANALYSIS
+→ ESCALATION_REQUIRED
+```
+
+Cause:
+```text
+VERIFIER_FAIL
+TECHNICAL_RETRY_EXHAUSTED
+```
+
+## Re-analysis Limit Reached
+
+```text
+governed reject/block/fail action succeeds
+→ no next analysis version
+→ ESCALATION_REQUIRED
 ```
 
 ## All Required Checker Approve
