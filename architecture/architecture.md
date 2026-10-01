@@ -916,6 +916,8 @@ Flow:
 ```text
 New Feedback / Evidence
 ↓
+Check MAX_REANALYSIS
+↓
 Transition → AI_ANALYSIS
 ↓
 Build Fresh Context
@@ -932,6 +934,29 @@ Update current_analysis_id
 ↓
 CHECKING
 ```
+
+MVP re-analysis semantics:
+
+```text
+MAX_REANALYSIS = 3
+
+v1 = initial analysis, not counted
+v2 = re-analysis #1
+v3 = re-analysis #2
+v4 = re-analysis #3
+
+request for next business re-analysis
+→ REANALYSIS_LIMIT_REACHED
+→ ESCALATION_REQUIRED
+```
+
+Formula:
+
+```text
+reanalysis_count = latest_analysis_version - 1
+```
+
+Technical model/provider retry tidak membuat analysis version baru dan tidak mengonsumsi re-analysis quota. Retry teknis tetap berada pada business analysis cycle/version yang sama.
 
 Previous analysis hanya historical context.
 
