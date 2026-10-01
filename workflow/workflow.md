@@ -143,13 +143,12 @@ MVP rules:
 ```text
 Maker ≠ Checker
 Maker ≠ Signer
+Maker ≠ Executer
 
 Checker ≠ Signer
 Checker ≠ Executer
 
 Signer ≠ Executer
-
-Maker = Executer allowed
 ```
 
 Rules divalidasi oleh backend.
@@ -177,7 +176,7 @@ EXECUTER
 exactly 1 active before submit
 ```
 
-`MAKER = EXECUTER` tetap diperbolehkan.
+Setiap active participant user hanya boleh memegang **satu** workflow role pada sebuah case. ADMIN adalah system role dan bukan participant role.
 
 ## 3.2 Governance Snapshot / Submission Freeze Rule
 
@@ -188,6 +187,7 @@ case core data     editable by Maker
 Checker assignment editable
 Signer assignment  editable
 Executer assignment editable
+owner              = Maker / immutable
 evidence           may be added
 ```
 
@@ -564,30 +564,9 @@ Backend memetakan business action ke workflow event.
 
 # 9. Submit Flow
 
-Initial state:
-
 ```text
-DRAFT
-```
-
-Preconditions:
-
-```text
-authenticated user = Maker
-case status = DRAFT
-case detail valid
-
-exactly 1 active Maker
-at least 1 active required Checker
-exactly 1 active Signer
-exactly 1 active Executer
-
-segregation of duties valid
-```
-
-Flow:
-
-```text
+Maker
+↓
 Validate Case
 ↓
 Validate Participant Cardinality
@@ -596,124 +575,76 @@ Validate Segregation of Duties
 ↓
 Freeze Case Core Data + Participant Set
 ↓
-Persist Submission
+BEGIN TRANSACTION
+↓
+DRAFT → SUBMITTED → AI_ANALYSIS
+↓
+Allocate Analysis v1 = GENERATING
 ↓
 Audit CASE_SUBMITTED
-↓
-DRAFT → SUBMITTED
-↓
-START_ANALYSIS
-↓
-SUBMITTED → AI_ANALYSIS
-↓
-Start AI Cycle after submit commit
-↓
-Allocate GENERATING Analysis v1
-↓
 Audit AI_ANALYSIS_STARTED
 ↓
-Trigger external AI work
+Insert outbox AI_ANALYSIS_REQUESTED
+↓
+COMMIT
 ```
 
-Result:
+Response dapat segera mengembalikan `AI_ANALYSIS`. API tidak menunggu Gemini.
+
+Durable worker flow setelah commit:
 
 ```text
-case.status = AI_ANALYSIS
+Outbox Dispatcher
+→ RabbitMQ
+→ AI Worker
+→ Vertex AI
+→ Finalization Transaction
 ```
+
+Business state dan enqueue intent tidak dapat terpisah karena keduanya ditulis dalam transaction yang sama.
 
 ---
 
 # 10. AI Analysis Flow
 
-Input:
+Queue contract:
 
 ```text
-Current Case
-Current Evidence
-Current ACTIVE + READY Policies
-Reviewer Feedback
-Execution Feedback
-Current Workflow State
+ai_analyses.status = GENERATING
++
+outbox_events = PENDING/PUBLISHED
 ```
 
-Pipeline:
+Worker receives exact `analysis_id`.
 
 ```text
-Context Builder
+RabbitMQ Delivery
 ↓
-Policy Retrieval
+Load persisted analysis
 ↓
-Case Analysis
+if analysis != GENERATING
+  ACK and no-op
 ↓
-Risk & Compliance Analysis
+Build Context
 ↓
-Recommendation
+Retrieve Current ACTIVE + READY Policies
 ↓
-Verification
+Attach Current Evidence
+  - text as data
+  - supported PDF/JPEG/PNG as GCS fileData
 ↓
-Persist Analysis Version
+Gemini Analysis
+↓
+Validate Structured Output
+↓
+Gemini Verifier
 ```
 
-If verifier:
+PASS/PASS_WITH_WARNING finalizes to `COMPLETED → CHECKING`.
 
-```text
-PASS
-PASS_WITH_WARNING
-```
+Verifier FAIL or exhausted technical retries finalize to `FAILED → ESCALATION_REQUIRED`.
 
-then:
-
-```text
-AI_ANALYSIS → CHECKING
-```
-
-Technical retry policy is configured at runtime:
-
-```text
-AI_TECHNICAL_MAX_RETRIES=<non-negative integer>
-```
-
-Semantics:
-
-```text
-initial provider/model attempt
-+ up to AI_TECHNICAL_MAX_RETRIES retry attempts
-= one business analysis cycle / one analysis version
-```
-
-Retryable technical failures include timeout, transient provider failure, and invalid structured model response that is explicitly retried by the analysis orchestration.
-
-Verifier `FAIL` is a semantic verification result and is not retried as a technical provider failure.
-
-Verifier terminal failure:
-
-```text
-Persist analysis FAILED
-Preserve valid structured analysis output
-verification_status = FAIL
-↓
-Audit AI_ANALYSIS_FAILED
-metadata.failure_type = VERIFIER_FAIL
-↓
-ANALYSIS_FAILED
-↓
-AI_ANALYSIS → ESCALATION_REQUIRED
-```
-
-If the technical retry budget is exhausted:
-
-```text
-Persist analysis FAILED
-↓
-Audit AI_ANALYSIS_FAILED
-metadata.failure_type = TECHNICAL_RETRY_EXHAUSTED
-↓
-ANALYSIS_FAILED
-↓
-AI_ANALYSIS → ESCALATION_REQUIRED
-```
-
-Technical retries never consume `MAX_REANALYSIS` and never create a new analysis version.
+RabbitMQ message is acknowledged only after durable finalization. Duplicate/redelivered messages cannot create another analysis version and cannot overwrite a finalized analysis.
 
 ---
 
@@ -1079,7 +1010,7 @@ if quota exhausted:
 
 # 18. Re-analysis Flow
 
-Re-analysis trigger:
+Governed triggers:
 
 ```text
 CHECKER_REJECTED
@@ -1088,48 +1019,47 @@ EXECUTION_BLOCKED
 EXECUTION_FAILED
 ```
 
-MVP tidak menyediakan generic/manual re-analysis action atau endpoint. Evidence baru tidak otomatis membuat analysis version baru; reviewer/executer menggunakan business action yang sesuai bila evidence tersebut mengubah decision context.
-
-Flow when quota is available:
+Within the **same business transaction** as the triggering action:
 
 ```text
-Governed Feedback / Execution Result
+persist feedback/result/evidence
 ↓
-AI_ANALYSIS
+business event → AI_ANALYSIS
 ↓
-COMMIT triggering business transaction
-↓
-Build Current Context
-↓
-Retrieve Current ACTIVE + READY Policy
-↓
-Generate New Analysis Version
-↓
-Verify
-↓
-Set cases.current_analysis_id only on success
-↓
-CHECKING
+check MAX_REANALYSIS
 ```
 
-Flow when quota is exhausted:
+If quota available:
 
 ```text
-Governed Feedback / Execution Result is persisted
+allocate next Analysis = GENERATING
 ↓
-AI_ANALYSIS
+Audit AI_ANALYSIS_STARTED
 ↓
-REANALYSIS_LIMIT_REACHED
-↓
-ESCALATION_REQUIRED
+Insert outbox AI_ANALYSIS_REQUESTED
 ↓
 COMMIT
 ↓
-No new analysis version
-No AI call
+worker eventually consumes via RabbitMQ
 ```
 
-Analysis lama tidak dihapus.
+If quota exhausted:
+
+```text
+Audit REANALYSIS_LIMIT_REACHED
+↓
+AI_ANALYSIS → ESCALATION_REQUIRED
+↓
+COMMIT
+↓
+no new analysis row
+no outbox row
+no AI call
+```
+
+New analysis reloads current evidence and current applicable ACTIVE + READY policy.
+
+Technical RabbitMQ redelivery or provider retry does not allocate another business analysis version and does not consume `MAX_REANALYSIS`.
 
 ---
 
@@ -1450,6 +1380,18 @@ No action required
 
 Close mutation harus menggunakan current-state validation dan row locking.
 
+Close safety guard:
+
+```text
+EXISTS ai_analyses(status = GENERATING)
+→ reject close
+
+EXISTS executions(status = IN_PROGRESS)
+→ reject close
+```
+
+Jika salah satu proses masih aktif, endpoint mengembalikan `409 INVALID_STATE_TRANSITION` dan user diminta menunggu proses mencapai terminal state. Close tidak membatalkan AI job atau execution yang sedang berjalan.
+
 Audit `CASE_CLOSED` minimal menyimpan:
 
 ```text
@@ -1466,6 +1408,11 @@ Close event:
 Validate Active Participant
 ↓
 Validate Non-Terminal State
+↓
+Lock Case
+↓
+Validate No GENERATING Analysis
+Validate No IN_PROGRESS Execution
 ↓
 Persist Close Reason
 ↓
@@ -1918,7 +1865,7 @@ Invariant berikut harus selalu benar:
 12. Segregation of duties selalu divalidasi backend.
 13. Case core data dan participant set immutable setelah meninggalkan DRAFT.
 14. Participant replacement pada in-flight case tidak tersedia; perubahan personel membutuhkan close + new case.
-15. Maker assignment adalah creator dan immutable.
+15. Maker assignment adalah creator, owner, dan immutable.
 16. Re-analysis hanya dapat dipicu oleh CHECKER_REJECTED, SIGNER_REJECTED, EXECUTION_BLOCKED, atau EXECUTION_FAILED.
 17. Manual/generic re-analysis tidak tersedia pada MVP.
 18. User evidence mutation hanya tersedia pada DRAFT/CHECKING/SIGNING/EXECUTION/ESCALATION_REQUIRED sesuai role authorization.
@@ -1927,6 +1874,10 @@ Invariant berikut harus selalu benar:
 21. AI terminal failure menggunakan ANALYSIS_FAILED dengan cause VERIFIER_FAIL atau TECHNICAL_RETRY_EXHAUSTED.
 22. Re-analysis quota exhaustion menggunakan REANALYSIS_LIMIT_REACHED dan tidak membuat analysis version baru.
 23. ESCALATION_REQUIRED tidak dapat resume pada MVP; allowed user mutations hanya evidence dan close sesuai authorization.
+24. Maker, Checker, Signer, dan Executer adalah user yang berbeda pada satu case.
+25. Case owner selalu sama dengan Maker/creator pada MVP.
+26. AI_ANALYSIS selalu memiliki persisted GENERATING analysis + durable outbox intent sebelum transaction commit.
+27. Close ditolak selama analysis GENERATING atau execution IN_PROGRESS.
 ```
 
 ---
