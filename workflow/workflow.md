@@ -726,9 +726,10 @@ CHECKING → AI_ANALYSIS
 Check MAX_REANALYSIS
 
 if quota available:
+  Allocate next Analysis = GENERATING
+  Audit AI_ANALYSIS_STARTED
+  Insert outbox AI_ANALYSIS_REQUESTED
   COMMIT
-  ↓
-  Trigger Re-analysis after commit
 
 if quota exhausted:
   Audit REANALYSIS_LIMIT_REACHED
@@ -850,9 +851,10 @@ SIGNING → AI_ANALYSIS
 Check MAX_REANALYSIS
 
 if quota available:
+  Allocate next Analysis = GENERATING
+  Audit AI_ANALYSIS_STARTED
+  Insert outbox AI_ANALYSIS_REQUESTED
   COMMIT
-  ↓
-  Trigger Re-analysis after commit
 
 if quota exhausted:
   Audit REANALYSIS_LIMIT_REACHED
@@ -955,9 +957,10 @@ EXECUTION → AI_ANALYSIS
 Check MAX_REANALYSIS
 
 if quota available:
+  Allocate next Analysis = GENERATING
+  Audit AI_ANALYSIS_STARTED
+  Insert outbox AI_ANALYSIS_REQUESTED
   COMMIT
-  ↓
-  Trigger Re-analysis after commit
 
 if quota exhausted:
   Audit REANALYSIS_LIMIT_REACHED
@@ -994,9 +997,10 @@ EXECUTION → AI_ANALYSIS
 Check MAX_REANALYSIS
 
 if quota available:
+  Allocate next Analysis = GENERATING
+  Audit AI_ANALYSIS_STARTED
+  Insert outbox AI_ANALYSIS_REQUESTED
   COMMIT
-  ↓
-  Trigger Re-analysis after commit
 
 if quota exhausted:
   Audit REANALYSIS_LIMIT_REACHED
