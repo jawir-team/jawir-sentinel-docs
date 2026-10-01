@@ -14,7 +14,7 @@ Google Cloud SQL
 pgvector
 ```
 
-Dokumen ini menjadi source of truth untuk:
+Dokumen ini menjadi sumber kebenaran untuk:
 
 - table structure;
 - primary key;
@@ -44,7 +44,7 @@ Database JAWIR Sentinel dirancang untuk mendukung:
 
 Prinsip utama:
 
-> **Current state may change. Historical decision context must remain reproducible.**
+> **State saat ini dapat berubah. Konteks decision historis harus tetap dapat direproduksi.**
 
 ---
 
@@ -341,7 +341,7 @@ OPERATIONAL_INCIDENT
 
 # 10. `cases`
 
-Menyimpan current case state.
+Menyimpan state case saat ini.
 
 ```text
 cases
@@ -570,7 +570,7 @@ case.status != DRAFT
 
 An `INACTIVE` participant row hanya dapat dihasilkan dari DRAFT-stage unassignment/replacement. Setelah submit, participant records dipertahankan sebagai frozen governance context.
 
-Because `UNIQUE(case_id, user_id, role)` keeps one row per user-role, re-assigning the same previously-INACTIVE user/role during DRAFT reactivates that existing row instead of inserting a duplicate. Reactivation refreshes assignment metadata and clears `unassigned_at`; audit events preserve assignment/unassignment history.
+Karena `UNIQUE(case_id, user_id, role)` mempertahankan satu row per user-role, re-assign user/role yang sebelumnya INACTIVE saat DRAFT akan mengaktifkan kembali row yang sama, bukan insert duplicate. Reactivation memperbarui assignment metadata dan mengosongkan `unassigned_at`; audit event tetap menyimpan history assignment/unassignment.
 
 Segregation of duties tetap divalidasi di application layer.
 
@@ -657,7 +657,7 @@ READY
 FAILED
 ```
 
-Index lifecycle is independent from policy authority lifecycle.
+Lifecycle index terpisah dari lifecycle policy authority.
 
 Constraint:
 
@@ -703,7 +703,7 @@ AND (effective_from <= now() OR effective_from IS NULL)
 AND (effective_until > now() OR effective_until IS NULL)
 ```
 
-Policy lifecycle and retrieval readiness are intentionally separated:
+Lifecycle policy dan retrieval readiness sengaja dipisahkan:
 
 ```text
 status
@@ -1040,9 +1040,9 @@ FAILED after valid analysis but verifier FAIL
 → verification_notes contains verifier issues
 ```
 
-Invalid/unvalidated model output must not be copied into structured analysis columns.
+Invalid/unvalidated model output tidak boleh disalin ke structured analysis columns.
 
-Application/service must enforce that `COMPLETED` contains all fields required by the analysis contract:
+Application/service wajib memastikan `COMPLETED` memiliki seluruh field yang diwajibkan analysis contract:
 
 ```text
 summary
@@ -1061,7 +1061,7 @@ verification_status
 verification_notes
 ```
 
-For a valid completed analysis, empty arrays/objects remain valid values and are distinct from NULL.
+Untuk completed analysis yang valid, empty array/object tetap merupakan value valid dan berbeda dari NULL.
 
 ---
 
@@ -1096,7 +1096,7 @@ INDEX(policy_version_id)
 INDEX(analysis_id, policy_version_id)
 ```
 
-Historical reference tidak berubah walaupun policy version berikutnya diaktifkan.
+Reference historis tidak berubah walaupun policy version berikutnya diaktifkan.
 
 Aturan lifecycle:
 
@@ -1142,7 +1142,7 @@ Constraint:
 UNIQUE(analysis_id, evidence_id, usage_type)
 ```
 
-Evidence-ref lifecycle follows the same rule as policy refs: preserve provenance for COMPLETED and verifier-FAILED schema-valid analyses; do not fabricate refs from invalid/unvalidated output.
+Lifecycle evidence-ref mengikuti aturan yang sama dengan policy refs: pertahankan provenance untuk COMPLETED dan verifier-FAILED analysis yang schema-valid; jangan membuat fabricated refs dari invalid/unvalidated output.
 
 Index:
 
@@ -1217,7 +1217,7 @@ Decision valid only if:
 decision.analysis_id = cases.current_analysis_id
 ```
 
-Historical decision tetap disimpan setelah re-analysis.
+Decision historis tetap disimpan setelah re-analysis.
 
 ---
 
@@ -1266,7 +1266,7 @@ Constraint:
 UNIQUE(case_id, analysis_id)
 ```
 
-One authorized analysis can create at most one execution attempt. BLOCKED/FAILED requires re-analysis before another execution attempt can exist.
+Satu authorized analysis hanya boleh menghasilkan satu execution attempt. BLOCKED/FAILED membutuhkan re-analysis sebelum execution attempt baru dapat dibuat.
 
 Index:
 
@@ -1366,7 +1366,7 @@ Rules:
 
 # 22. `audit_events`
 
-Menyimpan append-only audit history untuk case workflow dan policy lifecycle menggunakan satu table dengan explicit scope.
+Menyimpan append-only audit history untuk case workflow dan policy lifecycle menggunakan satu table dengan scope eksplisit.
 
 ```text
 audit_events
@@ -1537,7 +1537,7 @@ Invariant aplikasi:
 
 # 23. Data Saat Ini vs Historis
 
-Current state disimpan pada:
+State saat ini disimpan pada:
 
 ```text
 cases.status
@@ -1553,9 +1553,9 @@ Operational delivery state disimpan pada:
 outbox_events.status
 ```
 
-Outbox is operational transport state, not business/audit authority.
+Outbox adalah operational transport state, bukan business/audit authority.
 
-Historical data disimpan pada:
+Data historis disimpan pada:
 
 ```text
 ai_analyses
@@ -1568,7 +1568,7 @@ policy_versions
 case_evidences
 ```
 
-Historical record tidak di-overwrite untuk menggantikan decision context lama.
+Record historis tidak di-overwrite untuk menggantikan decision context lama.
 
 ---
 
@@ -1619,9 +1619,9 @@ Request analysis baru disiapkan secara atomic:
 5. Commit
 ```
 
-Worker completion dilakukan pada transaction berikutnya. Only a successfully verified COMPLETED analysis updates `cases.current_analysis_id` and persists its final provenance/analysis-completion audit. FAILED analysis never becomes current.
+Worker completion dilakukan pada transaction berikutnya. Hanya COMPLETED analysis yang berhasil diverifikasi yang mengubah `cases.current_analysis_id` dan mempersist final provenance/audit completion. FAILED analysis tidak pernah menjadi current.
 
-Worker claim/finalization must match `worker_attempt_id` so a late superseded consumer cannot overwrite a newer delivery claim.
+Worker claim/finalization wajib cocok dengan `worker_attempt_id` agar superseded consumer yang terlambat tidak dapat menimpa delivery claim yang lebih baru.
 
 ---
 
@@ -1629,7 +1629,7 @@ Worker claim/finalization must match `worker_attempt_id` so a late superseded co
 
 Decision selalu terikat ke `analysis_id`.
 
-Example:
+Contoh:
 
 ```text
 Analysis v1
@@ -1661,13 +1661,13 @@ SOP-OPS-001
 
 Hanya satu `ACTIVE` version per policy.
 
-Historical AI analysis tetap reference ke exact old policy version yang digunakan.
+AI analysis historis tetap reference ke exact old policy version yang digunakan.
 
 ---
 
 # 28. Indexing dan Aktivasi Policy
 
-Activation uses **index first, activate second**.
+Activation menggunakan prinsip **index first, activate second**.
 
 Initial target:
 
@@ -1700,7 +1700,7 @@ Build deterministic chunks
 Generate all embeddings
 ```
 
-If indexing fails and the attempt still owns the current index_attempt_id:
+Jika indexing gagal dan attempt masih memiliki current `index_attempt_id`:
 
 ```text
 BEGIN
@@ -1715,7 +1715,7 @@ Current ACTIVE version remains unchanged.
 Target remains DRAFT.
 ```
 
-If indexing succeeds and the attempt still owns the current index_attempt_id:
+Jika indexing berhasil dan attempt masih memiliki current `index_attempt_id`:
 
 ```text
 BEGIN
@@ -1758,11 +1758,11 @@ if stale
 → old attempt can no longer finalize READY/FAILED
 ```
 
-No Vertex AI call runs inside an open database transaction. Future-effective/expired versions are not activatable in MVP.
+Tidak ada Vertex AI call di dalam open database transaction. Version future-effective/expired tidak dapat diaktifkan pada MVP.
 
-A failed indexing attempt must never supersede the current ACTIVE policy.
+Indexing attempt yang gagal tidak boleh men-supercede ACTIVE policy saat ini.
 
-Retrieval only uses versions satisfying:
+Retrieval hanya memakai version yang memenuhi:
 
 ```text
 status = ACTIVE
@@ -1878,7 +1878,7 @@ COMMIT
 
 # 32. Concurrency
 
-Critical workflow query harus membaca current state dan current analysis dalam transaction.
+Critical workflow query harus membaca state dan analysis saat ini di dalam transaction.
 
 Approval request:
 
@@ -1946,7 +1946,7 @@ Format MVP:
 CASE-YYYY-NNNNNN
 ```
 
-Example:
+Contoh:
 
 ```text
 CASE-2026-000001
@@ -2330,4 +2330,4 @@ Frontend Implementation:
 jawir-sentinel-fe/README.md
 ```
 
-Dokumen ini menjadi source of truth untuk database schema JAWIR Sentinel MVP.
+Dokumen ini menjadi sumber kebenaran untuk database schema JAWIR Sentinel MVP.
