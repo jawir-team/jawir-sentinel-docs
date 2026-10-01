@@ -2266,7 +2266,7 @@ Invariant berikut harus selalu benar:
 15. Re-analysis creates a new analysis version.
 16. New analysis invalidates prior approval authority.
 17. DONE only follows successful execution.
-18. BLOCKED/FAILED returns workflow to AI_ANALYSIS.
+18. BLOCKED/FAILED kembali ke AI_ANALYSIS jika quota tersedia; jika habis, ke ESCALATION_REQUIRED tanpa analysis/outbox baru.
 19. AI failure does not delete or reset the case.
 20. Analysis result NULL means not produced; valid empty collections are preserved as empty JSON.
 21. Invalid/unvalidated model output is never persisted as structured analysis data.
