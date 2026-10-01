@@ -1003,7 +1003,7 @@ Analysis version starts from 1.
 Version increases monotonically per case.
 technical_retry_count persists technical retry consumption for the same analysis version across worker restart/redelivery.
 worker_attempt_id + worker_started_at form the processing claim for a GENERATING analysis.
-A finalization write must match the currently claimed worker_attempt_id.
+All worker-owned writes, including `technical_retry_count` increments and finalization, must match the currently claimed `worker_attempt_id`.
 Historical analysis is never overwritten.
 ```
 
@@ -2264,7 +2264,7 @@ Invariant berikut harus selalu benar:
 32. policy indexing finalization must match current index_attempt_id; stale attempts cannot overwrite a newer attempt.
 33. policy activation requires READY + currently effective target.
 34. technical_retry_count is monotonic within a GENERATING analysis and prevents RabbitMQ redelivery from resetting the configured technical retry budget.
-35. GENERATING analysis worker finalization requires the current worker_attempt_id; stale worker attempts have no write authority.
+35. GENERATING analysis worker-owned writes require the current worker_attempt_id; stale worker attempts cannot increment retry state or finalize.
 36. AI worker claim recovery uses worker_started_at + AI_WORKER_LEASE_SECONDS.
 ```
 
