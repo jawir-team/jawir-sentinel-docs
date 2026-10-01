@@ -885,26 +885,24 @@ Clients must not interpret null as `NO_POLICY_FOUND`, empty evidence, PASS/FAIL,
 
 ---
 
-## POST `/cases/{case_id}/reanalyze`
+## Manual Re-analysis
 
-Request:
+MVP does **not** expose:
 
-```json
-{
-  "reason": "New supporting evidence has been added."
-}
+```http
+POST /cases/{case_id}/reanalyze
 ```
 
-Response:
+A new analysis version may only be triggered by governed business actions:
 
-```json
-{
-  "data": {
-    "case_id": "uuid",
-    "status": "AI_ANALYSIS"
-  }
-}
+```text
+CHECKER_REJECTED
+SIGNER_REJECTED
+EXECUTION_BLOCKED
+EXECUTION_FAILED
 ```
+
+Adding evidence alone does not automatically create a new analysis version.
 
 ---
 
