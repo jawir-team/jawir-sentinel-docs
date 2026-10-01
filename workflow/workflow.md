@@ -31,7 +31,7 @@ JAWIR Sentinel menggunakan governed decision workflow untuk memastikan operation
 - direview oleh required Checker;
 - diotorisasi oleh Signer;
 - dieksekusi oleh Executer;
-- dapat dianalisis ulang ketika terdapat reject, blocker, failure, atau evidence baru;
+- dapat dianalisis ulang hanya melalui governed business event: Checker reject, Signer reject, Execution blocked, atau Execution failed;
 - memiliki audit trail lengkap.
 
 Prinsip utama:
@@ -987,8 +987,9 @@ CHECKER_REJECTED
 SIGNER_REJECTED
 EXECUTION_BLOCKED
 EXECUTION_FAILED
-MANUAL_REANALYZE
 ```
+
+MVP tidak menyediakan generic/manual re-analysis action atau endpoint. Evidence baru tidak otomatis membuat analysis version baru; reviewer/executer menggunakan business action yang sesuai bila evidence tersebut mengubah decision context.
 
 Flow:
 
@@ -1168,7 +1169,7 @@ EXECUTION_RESULT
 
 Evidence lama tidak dihapus dari historical decision context.
 
-New evidence dapat memicu re-analysis melalui allowed business action.
+New evidence tidak otomatis memicu re-analysis. Jika evidence baru mengubah decision context, re-analysis hanya terjadi melalui allowed governed business action: Checker REJECT, Signer REJECT, Execution BLOCKED, atau Execution FAILED.
 
 ---
 
@@ -1700,6 +1701,8 @@ Invariant berikut harus selalu benar:
 13. Case core data dan participant set immutable setelah meninggalkan DRAFT.
 14. Participant replacement pada in-flight case tidak tersedia; perubahan personel membutuhkan close + new case.
 15. Maker assignment adalah creator dan immutable.
+16. Re-analysis hanya dapat dipicu oleh CHECKER_REJECTED, SIGNER_REJECTED, EXECUTION_BLOCKED, atau EXECUTION_FAILED.
+17. Manual/generic re-analysis tidak tersedia pada MVP.
 ```
 
 ---
