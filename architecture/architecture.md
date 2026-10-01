@@ -733,7 +733,7 @@ analysis_evidence_refs
 case_evidences
 ```
 
-Historical data tidak di-overwrite untuk menggantikan decision context lama.
+Data historis tidak di-overwrite untuk menggantikan decision context lama.
 
 ---
 
@@ -772,14 +772,14 @@ index                   = HNSW
 
 Queue correctness:
 
-- message identity is the persisted `outbox_events.id`;
-- payload contains exact `case_id` and `analysis_id`;
-- duplicate/redelivered messages are allowed;
-- worker checks persisted analysis status before work;
+- identitas message menggunakan `outbox_events.id` yang sudah dipersist;
+- payload berisi exact `case_id` dan `analysis_id`;
+- duplicate/redelivered message diperbolehkan;
+- worker memeriksa persisted analysis status sebelum bekerja;
 - finalization row-lock/state guards ensure at most one durable outcome;
-- a duplicate consumer that finds analysis already COMPLETED/FAILED acknowledges and performs no state mutation.
+- duplicate consumer yang menemukan analysis sudah COMPLETED/FAILED melakukan ACK tanpa state mutation.
 
-Embedding contract remains independent from RabbitMQ transport.
+Kontrak embedding tetap independen dari transport RabbitMQ.
 
 ---
 
@@ -1027,7 +1027,7 @@ ACTIVE
 → SUPERSEDED
 ```
 
-Historical analysis tetap reference ke version lama yang digunakan saat decision dibuat.
+Analysis historis tetap reference ke version lama yang digunakan saat decision dibuat.
 
 ---
 
@@ -1235,7 +1235,7 @@ reanalysis_count = latest_analysis_version - 1
 
 Technical model/provider retry tidak membuat analysis version baru dan tidak mengonsumsi re-analysis quota. Retry teknis tetap berada pada business analysis cycle/version yang sama.
 
-Previous analysis hanya historical context.
+Analysis sebelumnya hanya menjadi konteks historis.
 
 Approval tidak diwariskan ke version baru.
 
@@ -1393,7 +1393,7 @@ image/jpeg
 image/png
 ```
 
-Stored evidence includes `mime_type`.
+Evidence yang tersimpan mencakup `mime_type`.
 
 Saat membentuk AI context, backend mengubah case-scoped GCS object menjadi URI `gs://...` dan mengirimkannya ke Gemini sebagai file data. Main API tidak pernah mem-proxy binary dan tidak memerlukan custom OCR pipeline untuk allowlist ini.
 
