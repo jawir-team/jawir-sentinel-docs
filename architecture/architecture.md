@@ -1712,7 +1712,7 @@ allowed:
 
 not available:
 - resume
-- generic retry/re-analyze
+- direct/generic re-analysis trigger
 - approve/reject/sign/execute
 - participant mutation
 - core case mutation
