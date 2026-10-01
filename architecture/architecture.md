@@ -2286,7 +2286,8 @@ Invariant berikut harus selalu benar:
 38. Stale policy indexing attempts cannot finalize after a newer index_attempt_id is claimed.
 39. Supported PDF/JPEG/PNG evidence is passed directly from GCS to Gemini.
 40. technical_retry_count survives worker restart/redelivery and is not reset by transport recovery.
-41. Docs define the contract; FE and BE implement it.
+41. At least one ACTIVE ADMIN must remain; the last ACTIVE ADMIN cannot be demoted or inactivated.
+42. Docs define the contract; FE and BE implement it.
 ```
 
 ---
