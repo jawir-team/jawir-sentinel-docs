@@ -1167,9 +1167,79 @@ REFERENCE
 EXECUTION_RESULT
 ```
 
+## 24.1 User Evidence Authorization
+
+User-created evidence hanya dapat ditambahkan oleh active participant pada state berikut:
+
+```text
+DRAFT
+→ Maker only
+
+CHECKING
+→ any active case participant
+
+SIGNING
+→ any active case participant
+
+EXECUTION
+→ any active case participant
+
+ESCALATION_REQUIRED
+→ any active case participant
+```
+
+User evidence tidak dapat ditambahkan pada:
+
+```text
+SUBMITTED
+AI_ANALYSIS
+DONE
+CLOSED
+```
+
+Rationale:
+
+- `SUBMITTED` adalah transient internal state;
+- `AI_ANALYSIS` menjaga analysis context tidak berubah ketika AI cycle sedang berjalan;
+- `DONE` dan `CLOSED` adalah terminal/read-only state.
+
+## 24.2 Actor Role
+
+Untuk user-created evidence, request membawa:
+
+```text
+actor_role
+```
+
+Backend wajib memvalidasi bahwa authenticated user memang memiliki active assignment dengan role tersebut pada case.
+
+Client tidak mengirim authoritative `source_type`. Backend menetapkan:
+
+```text
+source_user_id = authenticated user
+source_type    = validated actor_role
+```
+
+Ini diperlukan terutama ketika satu user memiliki lebih dari satu role yang valid, misalnya `MAKER = EXECUTER`.
+
+`SYSTEM` evidence hanya dapat dibuat oleh internal backend process dan tidak dapat dipilih melalui user-facing evidence endpoint.
+
+## 24.3 Evidence Effect on Workflow
+
 Evidence lama tidak dihapus dari historical decision context.
 
-New evidence tidak otomatis memicu re-analysis. Jika evidence baru mengubah decision context, re-analysis hanya terjadi melalui allowed governed business action: Checker REJECT, Signer REJECT, Execution BLOCKED, atau Execution FAILED.
+Menambahkan evidence **tidak** mengubah case state dan **tidak** otomatis memicu re-analysis.
+
+Jika evidence baru mengubah decision context, re-analysis hanya dapat terjadi melalui governed business action:
+
+```text
+Checker REJECT
+Signer REJECT
+Execution BLOCKED
+Execution FAILED
+```
+
+Pada `ESCALATION_REQUIRED`, evidence dapat ditambahkan untuk audit/manual investigation tetapi tidak otomatis melanjutkan workflow.
 
 ---
 
@@ -1703,6 +1773,8 @@ Invariant berikut harus selalu benar:
 15. Maker assignment adalah creator dan immutable.
 16. Re-analysis hanya dapat dipicu oleh CHECKER_REJECTED, SIGNER_REJECTED, EXECUTION_BLOCKED, atau EXECUTION_FAILED.
 17. Manual/generic re-analysis tidak tersedia pada MVP.
+18. User evidence mutation hanya tersedia pada DRAFT/CHECKING/SIGNING/EXECUTION/ESCALATION_REQUIRED sesuai role authorization.
+19. Evidence mutation tidak pernah mengubah workflow state secara langsung.
 ```
 
 ---
