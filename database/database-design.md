@@ -465,6 +465,24 @@ Constraint:
 UNIQUE(case_id, user_id, role)
 ```
 
+Cardinality indexes:
+
+```sql
+CREATE UNIQUE INDEX uq_case_active_maker
+ON case_participants(case_id)
+WHERE role = 'MAKER' AND status = 'ACTIVE';
+
+CREATE UNIQUE INDEX uq_case_active_signer
+ON case_participants(case_id)
+WHERE role = 'SIGNER' AND status = 'ACTIVE';
+
+CREATE UNIQUE INDEX uq_case_active_executer
+ON case_participants(case_id)
+WHERE role = 'EXECUTER' AND status = 'ACTIVE';
+```
+
+Tidak ada unique-per-case index untuk `CHECKER` karena satu case dapat memiliki multiple Checker.
+
 Foreign keys:
 
 ```text
@@ -483,7 +501,41 @@ INDEX(case_id, role, required, status)
 INDEX(user_id, status)
 ```
 
-Segregation of duties divalidasi di application layer.
+Business rules:
+
+```text
+MAKER:
+- exactly 1 active
+- automatically created from cases.created_by
+- cannot be unassigned or replaced
+
+CHECKER:
+- 1..N active allowed
+- at least 1 active required Checker at submit
+
+SIGNER:
+- max 1 active enforced by partial unique index
+- exactly 1 active required at submit
+
+EXECUTER:
+- max 1 active enforced by partial unique index
+- exactly 1 active required at submit
+```
+
+Participant mutation rule:
+
+```text
+case.status = DRAFT
+→ Checker / Signer / Executer may be assigned or unassigned
+
+case.status != DRAFT
+→ participant set is frozen
+→ assignment/unassignment/replacement forbidden
+```
+
+An `INACTIVE` participant row hanya dapat dihasilkan dari DRAFT-stage unassignment/replacement. Setelah submit, participant records dipertahankan sebagai frozen governance context.
+
+Segregation of duties tetap divalidasi di application layer.
 
 ---
 
@@ -1871,10 +1923,12 @@ Invariant berikut harus selalu benar:
 10. Checker decision references current analysis.
 11. DONE only after successful execution.
 12. CLOSED requires close metadata.
-13. audit events are append-only.
-14. audit scope invariants are valid; policy events never use fake case_id.
-15. historical analysis is never overwritten.
-16. historical policy references remain stable.
+13. active Maker max 1 per case; active Signer max 1 per case; active Executer max 1 per case.
+14. participant set is immutable after case leaves DRAFT.
+15. audit events are append-only.
+16. audit scope invariants are valid; policy events never use fake case_id.
+17. historical analysis is never overwritten.
+18. historical policy references remain stable.
 ```
 
 Invariant nomor 8 harus divalidasi di application layer karena FK standar tidak dapat memastikan cross-column same-case relationship secara langsung.
