@@ -644,7 +644,23 @@ PASS/PASS_WITH_WARNING finalizes to `COMPLETED → CHECKING`.
 
 Verifier FAIL or exhausted technical retries finalize to `FAILED → ESCALATION_REQUIRED`.
 
-RabbitMQ message is acknowledged only after durable finalization. Duplicate/redelivered messages cannot create another analysis version and cannot overwrite a finalized analysis.
+RabbitMQ message is acknowledged only after durable finalization.
+
+Worker claim safety:
+
+```text
+GENERATING + no current worker claim
+→ claim worker_attempt_id + worker_started_at
+
+fresh duplicate + active non-stale claim
+→ ACK duplicate / no work
+
+redelivered message or stale lease
+→ rotate worker_attempt_id
+→ previous worker loses finalization authority
+```
+
+Finalization must match the current `worker_attempt_id`. Duplicate/redelivered messages cannot create another analysis version or overwrite a newer claim/finalized analysis.
 
 ---
 
@@ -1274,24 +1290,20 @@ Rationale:
 - `AI_ANALYSIS` menjaga analysis context tidak berubah ketika AI cycle sedang berjalan;
 - `DONE` dan `CLOSED` adalah terminal/read-only state.
 
-## 24.2 Actor Role
+## 24.2 Evidence Actor Derivation
 
-Untuk user-created evidence, request membawa:
+Strict SoD ensures one active workflow role per user on a case.
 
-```text
-actor_role
-```
+For user-created evidence, client does **not** send `actor_role` or authoritative `source_type`.
 
-Backend wajib memvalidasi bahwa authenticated user memang memiliki active assignment dengan role tersebut pada case.
-
-Client tidak mengirim authoritative `source_type`. Backend menetapkan:
+Backend derives:
 
 ```text
 source_user_id = authenticated user
-source_type    = validated actor_role
+source_type    = user's single ACTIVE participant role
 ```
 
-Client-supplied `actor_role` remains an explicit acting-role intent and is always validated against the user's single ACTIVE participant role.
+If the authenticated user has no active participant assignment for the case, evidence creation is forbidden.
 
 `SYSTEM` evidence hanya dapat dibuat oleh internal backend process dan tidak dapat dipilih melalui user-facing evidence endpoint.
 
