@@ -1060,9 +1060,18 @@ sentinel-worker
 Worker phase:
 
 ```text
-Load analysis by analysis_id
+Load + lock analysis by analysis_id
 ↓
 if status != GENERATING → ACK / no-op
+↓
+claim worker_attempt_id + worker_started_at
+
+fresh duplicate with active non-stale claim
+→ ACK duplicate / no-op
+
+redelivered message OR stale worker lease
+→ rotate worker_attempt_id
+→ previous worker loses finalization authority
 ↓
 Build current context
 ↓
@@ -1113,7 +1122,11 @@ finalization transaction
 → RabbitMQ ACK
 ```
 
-If finalization fails before commit, the worker does not ACK; RabbitMQ may redeliver. State/finalization must therefore be idempotent.
+If finalization fails before commit, the worker does not ACK; RabbitMQ may redeliver.
+
+Every finalization transaction must validate the current `worker_attempt_id`. A late superseded worker may finish an external model call, but it cannot write analysis results or transition workflow state.
+
+`AI_WORKER_LEASE_SECONDS` controls stale worker-claim recovery. `technical_retry_count` remains persisted on the analysis and is never reset by redelivery/reclaim.
 
 ---
 
@@ -1165,29 +1178,37 @@ Execution Failed
 
 MVP intentionally has no generic/manual re-analysis command. A new evidence record by itself does not create a new analysis version. The workflow must reach re-analysis through one of the governed business events above.
 
-Flow:
+Flow when quota is available:
 
 ```text
-New Feedback / Evidence
-↓
-Check MAX_REANALYSIS
+Governed reject/block/fail business transaction
 ↓
 Transition → AI_ANALYSIS
+↓
+Allocate next GENERATING analysis
+↓
+Audit AI_ANALYSIS_STARTED
+↓
+Insert PENDING transactional outbox event
+↓
+COMMIT
+↓
+Outbox Dispatcher → RabbitMQ
+↓
+Worker claims exact analysis_id
 ↓
 Build Fresh Context
 ↓
 Retrieve Current ACTIVE + READY Policies
 ↓
-Generate New Analysis Version
+Generate / Validate / Verify
 ↓
-Verify
+Finalize exact analysis
 ↓
-Persist
-↓
-Update current_analysis_id
-↓
-CHECKING
+CHECKING on success
 ```
+
+If quota is exhausted, the triggering business action is persisted and the case enters `ESCALATION_REQUIRED` without creating an analysis/outbox row.
 
 MVP re-analysis semantics:
 
@@ -1852,10 +1873,17 @@ Browser
 Cloud Run Web
   ↓ HTTPS
 Cloud Run API
-  ↓
-Cloud SQL
-Cloud Storage
-Vertex AI
+  ├── Cloud SQL
+  └── Cloud Storage signed-upload control
+
+Cloud Run Worker Pool
+  ├── Cloud SQL / transactional outbox
+  ├── RabbitMQ durable queue
+  ├── Cloud Storage evidence read
+  └── Vertex AI
+
+Cloud Run API
+  └── Vertex AI embedding for policy indexing
 ```
 
 Public client tidak terhubung langsung ke database.
@@ -1976,6 +2004,7 @@ MAX_REANALYSIS
 AI_TECHNICAL_MAX_RETRIES
 POLICY_RETRIEVAL_TOP_K
 POLICY_INDEX_LEASE_SECONDS
+AI_WORKER_LEASE_SECONDS
 RABBITMQ_URL
 RABBITMQ_AI_QUEUE
 ```
@@ -2001,15 +2030,13 @@ Maker
 Frontend
   │ POST /cases
   ▼
-Backend
-  │
-  ├── Validate Input
-  ├── Insert Case
-  ├── Insert Maker Participant
+Backend transaction
+  ├── Insert Case(owner = creator)
+  ├── Insert immutable Maker participant
   └── Audit CASE_CREATED
   │
   ▼
-PostgreSQL
+COMMIT
 
 Maker
   │
@@ -2017,69 +2044,67 @@ Maker
 Frontend
   │ POST /cases/{id}/submit
   ▼
-Backend
-  │
-  ├── Validate Participant Cardinality
-  ├── Validate SoD
+Backend transaction
   ├── Lock Case
+  ├── Validate Participant Cardinality + strict SoD
   ├── Freeze Case Core + Participant Context
-  ├── Transition → SUBMITTED
-  ├── Audit
-  ├── Transition → AI_ANALYSIS
-  └── Commit
+  ├── DRAFT → SUBMITTED → AI_ANALYSIS
+  ├── Allocate Analysis v1 = GENERATING
+  ├── Audit CASE_SUBMITTED + AI_ANALYSIS_STARTED
+  ├── Insert PENDING outbox AI_ANALYSIS_REQUESTED
+  └── COMMIT
   │
   ▼
-AI Orchestrator
+HTTP response = AI_ANALYSIS
 ```
+
+No RabbitMQ/Vertex call occurs in the request transaction.
 
 ---
 
 # 44. Sequence — AI Analysis
 
 ```text
-Backend
+sentinel-worker Outbox Dispatcher
   │
-  ├── Short DB transaction
-  │   ├── Validate AI_ANALYSIS
-  │   ├── Allocate GENERATING analysis version
-  │   └── Audit AI_ANALYSIS_STARTED
+  ├── Read PENDING outbox
+  ├── Publish persistent RabbitMQ message
+  ├── Wait publisher confirm
+  └── Mark PUBLISHED
+  │
+  ▼
+RabbitMQ quorum queue
+  │
+  ▼
+AI Consumer
+  │
+  ├── Load + lock exact GENERATING analysis
+  ├── Claim worker_attempt_id
+  └── Commit claim
   │
   ▼
 Context Builder
-  │
   ├── Case
-  ├── Evidence
+  ├── Evidence text / supported GCS fileData
   ├── Reviewer Feedback
   └── Execution Feedback
   │
   ▼
-Policy Retriever
-  │
-  ├── Metadata Filter
-  ├── Embedding
-  └── pgvector Search
+Policy Retriever → ACTIVE + READY policy chunks
   │
   ▼
-Vertex AI Gemini
+Vertex AI Gemini → Validator → Verifier
   │
   ▼
-Structured Output
-  │
-  ▼
-Validator
-  │
-  ▼
-Verifier
-  │
-  ▼
-Backend Transaction
-  │
-  ├── Insert Analysis
-  ├── Insert Policy Refs
-  ├── Insert Evidence Refs
-  ├── Update current_analysis_id
-  ├── Transition → CHECKING
+Finalization Transaction
+  ├── Validate current worker_attempt_id
+  ├── Persist COMPLETED/FAILED result + provenance
+  ├── Update current_analysis_id only on success
+  ├── Transition CHECKING or ESCALATION_REQUIRED
   └── Audit
+  │
+  ▼
+COMMIT → RabbitMQ ACK
 ```
 
 ---
@@ -2102,12 +2127,15 @@ Backend
   ├── Validate analysis_id
   ├── Insert REJECT Decision
   ├── Insert Feedback Evidence
-  ├── Audit
+  ├── Audit CHECKER_REJECTED
   ├── Transition → AI_ANALYSIS
+  ├── Check MAX_REANALYSIS
+  ├── If allowed: allocate GENERATING + outbox
+  ├── If exhausted: ESCALATION_REQUIRED
   └── Commit
   │
   ▼
-AI Re-analysis
+RabbitMQ worker path only when queued
 ```
 
 ---
@@ -2154,12 +2182,15 @@ Backend
   ├── Validate Executer
   ├── Update Execution → BLOCKED
   ├── Insert Execution Evidence
-  ├── Audit
+  ├── Audit EXECUTION_BLOCKED
   ├── Transition → AI_ANALYSIS
+  ├── Check MAX_REANALYSIS
+  ├── If allowed: allocate GENERATING + outbox
+  ├── If exhausted: ESCALATION_REQUIRED
   └── Commit
   │
   ▼
-AI Re-analysis
+RabbitMQ worker path only when queued
 ```
 
 ---
@@ -2247,12 +2278,13 @@ Invariant berikut harus selalu benar:
 32. Maker, Checker, Signer, and Executer must be distinct active users for a case.
 33. Case owner is the immutable Maker/creator in MVP.
 34. AI job intent is persisted through transactional outbox in the same transaction as AI_ANALYSIS/GENERATING state.
-35. RabbitMQ delivery is at-least-once; worker finalization is idempotent.
+35. RabbitMQ delivery is at-least-once; worker_attempt_id/worker_started_at claim semantics prevent stale consumers from finalizing over a newer claim.
 36. Close is rejected while an analysis is GENERATING or an execution is IN_PROGRESS.
 37. Policy activation requires target READY and currently effective; future/expired versions are not activatable.
 38. Stale policy indexing attempts cannot finalize after a newer index_attempt_id is claimed.
 39. Supported PDF/JPEG/PNG evidence is passed directly from GCS to Gemini.
-40. Docs define the contract; FE and BE implement it.
+40. technical_retry_count survives worker restart/redelivery and is not reset by transport recovery.
+41. Docs define the contract; FE and BE implement it.
 ```
 
 ---
