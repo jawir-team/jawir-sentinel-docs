@@ -1003,8 +1003,9 @@ Checker Reject
 Signer Reject
 Execution Blocked
 Execution Failed
-Manual Re-analysis
 ```
+
+MVP intentionally has no generic/manual re-analysis command. A new evidence record by itself does not create a new analysis version. The workflow must reach re-analysis through one of the governed business events above.
 
 Flow:
 
@@ -1017,7 +1018,7 @@ Transition → AI_ANALYSIS
 ↓
 Build Fresh Context
 ↓
-Retrieve Current ACTIVE Policies
+Retrieve Current ACTIVE + READY Policies
 ↓
 Generate New Analysis Version
 ↓
@@ -1986,7 +1987,8 @@ Invariant berikut harus selalu benar:
 22. Case core data and participant set are immutable after submission.
 23. In-flight participant replacement is not supported; close + new case is required.
 24. Maker is the case creator and its assignment is immutable.
-25. Docs define the contract; FE and BE implement it.
+25. Manual/generic re-analysis is not exposed in MVP; re-analysis requires a governed business trigger.
+26. Docs define the contract; FE and BE implement it.
 ```
 
 ---
