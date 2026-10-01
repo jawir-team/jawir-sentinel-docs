@@ -944,6 +944,7 @@ then:
 ```text
 Persist analysis status = FAILED
 Preserve schema-valid analysis output that was actually produced
+Persist exact policy/evidence references used by that valid candidate
 Persist verification_status = FAIL
 Persist verification_notes
 Do not update current_analysis_id
