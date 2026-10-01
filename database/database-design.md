@@ -71,6 +71,7 @@ analysis_evidence_refs
 decisions
 executions
 
+outbox_events
 audit_events
 ```
 
@@ -142,6 +143,8 @@ cases ────────────────────────�
 | cases | ai_analyses | 1:N |
 | cases | decisions | 1:N |
 | cases | executions | 1:N |
+| cases | outbox_events | 1:N |
+| ai_analyses | outbox_events | 1:N |
 | cases | audit_events (CASE scope) | 1:N |
 | policies | audit_events (POLICY scope) | 1:N |
 | policy_versions | audit_events (POLICY scope, optional) | 1:N |
@@ -262,7 +265,7 @@ firebase_uid   VARCHAR(128)  NOT NULL UNIQUE
 name           VARCHAR(150)  NOT NULL
 email          VARCHAR(255)  NOT NULL UNIQUE
 status         VARCHAR(20)   NOT NULL DEFAULT 'ACTIVE'
-is_admin       BOOLEAN       NOT NULL DEFAULT FALSE
+system_role    VARCHAR(20)   NOT NULL DEFAULT 'USER'
 created_at     TIMESTAMPTZ   NOT NULL DEFAULT now()
 updated_at     TIMESTAMPTZ   NOT NULL DEFAULT now()
 ```
@@ -273,6 +276,15 @@ Allowed status:
 ACTIVE
 INACTIVE
 ```
+
+Allowed system role:
+
+```text
+USER
+ADMIN
+```
+
+`ADMIN` adalah global/system authorization role dan bukan case workflow role.
 
 Foreign key:
 
@@ -288,6 +300,7 @@ UNIQUE(firebase_uid)
 UNIQUE(email)
 INDEX(unit_id)
 INDEX(status)
+INDEX(system_role)
 INDEX(unit_id, status)
 ```
 
@@ -344,7 +357,7 @@ urgency               VARCHAR(20)   NOT NULL
 status                VARCHAR(40)   NOT NULL DEFAULT 'DRAFT'
 
 created_by            UUID          NOT NULL FK → users.id
-owner_id              UUID          NULL FK → users.id
+owner_id              UUID          NOT NULL FK → users.id
 
 current_analysis_id   UUID          NULL FK → ai_analyses.id
 
@@ -384,7 +397,7 @@ Foreign keys:
 ```text
 case_type_id → case_types.id ON DELETE RESTRICT
 created_by   → users.id      ON DELETE RESTRICT
-owner_id     → users.id      ON DELETE SET NULL
+owner_id     → users.id      ON DELETE RESTRICT
 closed_by    → users.id      ON DELETE SET NULL
 ```
 
@@ -419,6 +432,11 @@ CLOSED requires:
 - closed_at
 
 DONE does not require close fields.
+
+Owner contract:
+- owner_id = created_by at case creation;
+- owner_id is the immutable Maker for MVP;
+- no owner reassignment endpoint exists.
 
 current_analysis_id semantics:
 - points only to the latest COMPLETED analysis with verification PASS/PASS_WITH_WARNING
@@ -488,9 +506,13 @@ WHERE role = 'SIGNER' AND status = 'ACTIVE';
 CREATE UNIQUE INDEX uq_case_active_executer
 ON case_participants(case_id)
 WHERE role = 'EXECUTER' AND status = 'ACTIVE';
+
+CREATE UNIQUE INDEX uq_case_one_active_role_per_user
+ON case_participants(case_id, user_id)
+WHERE status = 'ACTIVE';
 ```
 
-Tidak ada unique-per-case index untuk `CHECKER` karena satu case dapat memiliki multiple Checker.
+Tidak ada unique-per-case index untuk `CHECKER` karena satu case dapat memiliki multiple Checker. Namun satu active user hanya boleh memegang satu workflow role pada case yang sama.
 
 Foreign keys:
 
@@ -529,6 +551,10 @@ SIGNER:
 EXECUTER:
 - max 1 active enforced by partial unique index
 - exactly 1 active required at submit
+
+SoD:
+- Maker, Checker, Signer, dan Executer harus berbeda user;
+- uq_case_one_active_role_per_user mencegah satu user memegang dua active role pada case yang sama.
 ```
 
 Participant mutation rule:
@@ -597,6 +623,8 @@ version          VARCHAR(30)   NOT NULL
 status           VARCHAR(20)   NOT NULL DEFAULT 'DRAFT'
 index_status     VARCHAR(20)   NOT NULL DEFAULT 'NOT_STARTED'
 index_error      TEXT          NULL
+index_attempt_id UUID          NULL
+index_started_at TIMESTAMPTZ   NULL
 indexed_at       TIMESTAMPTZ   NULL
 
 content          TEXT          NOT NULL
@@ -651,6 +679,7 @@ Indexes:
 INDEX(policy_id)
 INDEX(status)
 INDEX(index_status)
+INDEX(index_started_at)
 INDEX(policy_id, status)
 INDEX(policy_id, status, index_status)
 INDEX(effective_from)
@@ -687,9 +716,14 @@ index_status
 Rules:
 
 - a policy version may become `ACTIVE` only when `index_status = READY`;
+- activation requires the target to be currently effective: `effective_from IS NULL OR effective_from <= now()` and `effective_until IS NULL OR effective_until > now()`;
+- when both effective timestamps exist, `effective_until > effective_from`;
 - `READY` requires `indexed_at IS NOT NULL` and `index_error IS NULL`;
+- `PROCESSING` requires `index_attempt_id` and `index_started_at`;
 - `FAILED` keeps the policy version `DRAFT` and stores a safe diagnostic summary in `index_error`;
 - the currently ACTIVE version remains ACTIVE while a newer DRAFT version is being indexed;
+- READY/FAILED finalization must match the currently claimed `index_attempt_id`;
+- a stale PROCESSING lease may be reclaimed with a new attempt id after `POLICY_INDEX_LEASE_SECONDS`;
 - MVP does not expose an API to edit DRAFT policy content after creation. A changed policy body is represented by a new version;
 - if content mutation is introduced later, it must delete derived chunks and reset `index_status = NOT_STARTED`, `indexed_at = NULL`, and `index_error = NULL`.
 
@@ -846,6 +880,11 @@ At least one of:
 - file_path
 
 must be present.
+
+For file evidence:
+- `file_path` and `mime_type` are required;
+- MVP supported MIME: `application/pdf`, `image/jpeg`, `image/png`;
+- backend verifies the GCS object exists and belongs to the case-scoped prefix.
 ```
 
 ---
@@ -1252,7 +1291,72 @@ FAILED requires:
 
 ---
 
-# 21. `audit_events`
+# 21. `outbox_events`
+
+Durable transactional outbox untuk AI analysis jobs.
+
+```text
+outbox_events
+-------------
+id            UUID          PK
+case_id       UUID          NOT NULL FK → cases.id
+analysis_id   UUID          NOT NULL FK → ai_analyses.id
+event_type    VARCHAR(60)   NOT NULL
+payload       JSONB         NOT NULL DEFAULT '{}'
+status        VARCHAR(20)   NOT NULL DEFAULT 'PENDING'
+attempt_count INTEGER       NOT NULL DEFAULT 0
+published_at  TIMESTAMPTZ   NULL
+last_error    TEXT          NULL
+created_at    TIMESTAMPTZ   NOT NULL DEFAULT now()
+updated_at    TIMESTAMPTZ   NOT NULL DEFAULT now()
+```
+
+Allowed event type:
+
+```text
+AI_ANALYSIS_REQUESTED
+```
+
+Allowed status:
+
+```text
+PENDING
+PUBLISHED
+```
+
+Constraint:
+
+```text
+UNIQUE(event_type, analysis_id)
+```
+
+Foreign keys:
+
+```text
+case_id     → cases.id       ON DELETE CASCADE
+analysis_id → ai_analyses.id ON DELETE CASCADE
+```
+
+Indexes:
+
+```text
+INDEX(status, created_at)
+INDEX(case_id)
+INDEX(analysis_id)
+```
+
+Rules:
+
+- the outbox row is inserted in the **same transaction** that creates the `GENERATING` analysis and transitions the case to `AI_ANALYSIS`;
+- dispatcher publishes a persistent RabbitMQ message with `message_id = outbox_events.id`;
+- `PUBLISHED` is set only after publisher confirm;
+- failure before confirmation leaves/retries the event as `PENDING`;
+- a crash after broker confirm but before PUBLISHED may cause duplicate delivery; worker/finalization must be idempotent;
+- published rows are retained for MVP; retention cleanup is deferred.
+
+---
+
+# 22. `audit_events`
 
 Menyimpan append-only audit history untuk case workflow dan policy lifecycle menggunakan satu table dengan explicit scope.
 
@@ -1423,7 +1527,7 @@ Application invariants:
 
 ---
 
-# 22. Current vs Historical Data
+# 23. Current vs Historical Data
 
 Current state disimpan pada:
 
@@ -1434,6 +1538,14 @@ case_participants.status
 policy_versions.status
 executions.status
 ```
+
+Operational delivery state disimpan pada:
+
+```text
+outbox_events.status
+```
+
+Outbox is operational transport state, not business/audit authority.
 
 Historical data disimpan pada:
 
@@ -1452,7 +1564,7 @@ Historical record tidak di-overwrite untuk menggantikan decision context lama.
 
 ---
 
-# 23. No Hard Delete Rule
+# 24. No Hard Delete Rule
 
 Tidak ada hard delete melalui application API untuk:
 
@@ -1472,7 +1584,7 @@ Master data dapat dinonaktifkan melalui status jika diperlukan.
 
 ---
 
-# 24. Analysis Versioning Rule
+# 25. Analysis Versioning Rule
 
 Per case:
 
@@ -1504,7 +1616,7 @@ Update current analysis dan related references harus dilakukan dalam transaction
 
 ---
 
-# 25. Approval Version Rule
+# 26. Approval Version Rule
 
 Decision selalu terikat ke `analysis_id`.
 
@@ -1527,7 +1639,7 @@ cases.current_analysis_id
 
 ---
 
-# 26. Policy Version Rule
+# 27. Policy Version Rule
 
 Policy:
 
@@ -1544,7 +1656,7 @@ Historical AI analysis tetap reference ke exact old policy version yang digunaka
 
 ---
 
-# 27. Policy Indexing and Activation
+# 28. Policy Indexing and Activation
 
 Activation uses **index first, activate second**.
 
@@ -1562,9 +1674,11 @@ BEGIN
 
 1. Lock target policy version
 2. Validate target.status = DRAFT
-3. Set index_status = PROCESSING
-4. Clear index_error
-5. Delete derived chunks for exact policy_version_id if any
+3. Validate target is currently effective
+4. Claim new index_attempt_id
+5. Set index_status = PROCESSING
+6. Set index_started_at = now()
+7. Clear index_error
 
 COMMIT
 ```
@@ -1577,10 +1691,12 @@ Build deterministic chunks
 Generate all embeddings
 ```
 
-If indexing fails:
+If indexing fails and the attempt still owns the current index_attempt_id:
 
 ```text
 BEGIN
+Lock target version
+Validate expected index_attempt_id
 Set target.index_status = FAILED
 Set target.index_error = safe diagnostic summary
 Set target.indexed_at = NULL
@@ -1590,15 +1706,17 @@ Current ACTIVE version remains unchanged.
 Target remains DRAFT.
 ```
 
-If indexing succeeds:
+If indexing succeeds and the attempt still owns the current index_attempt_id:
 
 ```text
 BEGIN
 
-1. Insert complete embedded policy_chunks
-2. Set target.index_status = READY
-3. Set target.indexed_at = now()
-4. Clear target.index_error
+1. Lock target version and validate expected index_attempt_id
+2. Replace exact version's derived chunks atomically
+3. Insert complete embedded policy_chunks
+4. Set target.index_status = READY
+5. Set target.indexed_at = now()
+6. Clear target.index_error
 
 COMMIT
 ```
@@ -1611,15 +1729,27 @@ BEGIN
 1. Lock policy versions for policy_id
 2. Validate target.status = DRAFT
 3. Validate target.index_status = READY
-4. Update current ACTIVE → SUPERSEDED
-5. Update target DRAFT → ACTIVE
-6. Set approved_by / approved_at
-7. Insert POLICY_SUPERSEDED / POLICY_ACTIVATED audit events
+4. Revalidate target is currently effective
+5. Update current ACTIVE → SUPERSEDED
+6. Update target DRAFT → ACTIVE
+7. Set approved_by / approved_at
+8. Insert POLICY_SUPERSEDED / POLICY_ACTIVATED audit events
 
 COMMIT
 ```
 
-No Vertex AI call runs inside an open database transaction.
+PROCESSING recovery:
+
+```text
+if now() - index_started_at <= POLICY_INDEX_LEASE_SECONDS
+→ still owned/in progress; reject duplicate activation
+
+if stale
+→ claim new index_attempt_id + index_started_at
+→ old attempt can no longer finalize READY/FAILED
+```
+
+No Vertex AI call runs inside an open database transaction. Future-effective/expired versions are not activatable in MVP.
 
 A failed indexing attempt must never supersede the current ACTIVE policy.
 
@@ -1633,7 +1763,7 @@ AND effective date is valid
 
 ---
 
-# 28. Evidence Integrity Rule
+# 29. Evidence Integrity Rule
 
 Evidence tidak dianggap authoritative policy.
 
@@ -1654,7 +1784,7 @@ policy_versions.status = ACTIVE
 
 ---
 
-# 29. Referential Integrity
+# 30. Referential Integrity
 
 Critical FK menggunakan:
 
@@ -1678,7 +1808,7 @@ Application layer tetap tidak menyediakan hard delete workflow data.
 
 ---
 
-# 30. Transaction Rules
+# 31. Transaction Rules
 
 Critical workflow mutation harus atomic.
 
@@ -1737,7 +1867,7 @@ COMMIT
 
 ---
 
-# 31. Concurrency
+# 32. Concurrency
 
 Critical workflow query harus membaca current state dan current analysis dalam transaction.
 
@@ -1767,7 +1897,7 @@ HTTP:
 
 ---
 
-# 32. Locking Strategy
+# 33. Locking Strategy
 
 Critical mutation menggunakan row-level locking pada case:
 
@@ -1799,7 +1929,7 @@ Prevent race on current_analysis_id
 
 ---
 
-# 33. Case Number
+# 34. Case Number
 
 Format MVP:
 
@@ -1819,7 +1949,7 @@ Sequence generation dilakukan secara transaction-safe oleh backend/database.
 
 ---
 
-# 34. Timestamp Standard
+# 35. Timestamp Standard
 
 Semua timestamp menggunakan:
 
@@ -1837,7 +1967,7 @@ Display timezone menjadi tanggung jawab client.
 
 ---
 
-# 35. JSONB Usage
+# 36. JSONB Usage
 
 JSONB digunakan untuk AI-generated structured data:
 
@@ -1871,7 +2001,7 @@ Relational traceability
 
 ---
 
-# 36. Index Strategy
+# 37. Index Strategy
 
 ## Workflow Query
 
@@ -1957,7 +2087,7 @@ Policy status interpretation seperti `NO_POLICY_FOUND`, `INSUFFICIENT_EVIDENCE`,
 
 ---
 
-# 37. Seed Data
+# 38. Seed Data
 
 ## Units
 
@@ -1996,7 +2126,7 @@ SOP-COMP-001 Evidence and Approval Requirement
 
 ---
 
-# 38. Migration Order
+# 39. Migration Order
 
 Recommended migration sequence:
 
@@ -2024,7 +2154,7 @@ Recommended migration sequence:
 
 ---
 
-# 39. Migration File Naming
+# 40. Migration File Naming
 
 ```text
 000001_enable_extensions.up.sql
@@ -2038,7 +2168,7 @@ Migration harus reversible selama memungkinkan.
 
 ---
 
-# 40. Data Lifecycle
+# 41. Data Lifecycle
 
 ## Case
 
@@ -2086,7 +2216,7 @@ Assignment history tetap disimpan.
 
 ---
 
-# 41. Database Invariants
+# 42. Database Invariants
 
 Invariant berikut harus selalu benar:
 
@@ -2116,13 +2246,21 @@ Invariant berikut harus selalu benar:
 23. Invalid/unvalidated AI output is never stored as structured analysis data.
 24. current_analysis_id never points to FAILED/GENERATING analysis.
 25. AI terminal escalation cause is preserved in audit metadata; no duplicate case escalation column is required.
+26. users.system_role is USER or ADMIN; ADMIN is not a workflow participant role.
+27. cases.owner_id = cases.created_by and matches the immutable active Maker for MVP.
+28. one active user can hold only one workflow role per case.
+29. Maker, Checker, Signer, and Executer are distinct users.
+30. every queued AI cycle has exactly one UNIQUE(AI_ANALYSIS_REQUESTED, analysis_id) outbox row created atomically with GENERATING state.
+31. file evidence used by AI has a supported MIME type and case-scoped GCS object.
+32. policy indexing finalization must match current index_attempt_id; stale attempts cannot overwrite a newer attempt.
+33. policy activation requires READY + currently effective target.
 ```
 
 Invariant nomor 8 harus divalidasi di application layer karena FK standar tidak dapat memastikan cross-column same-case relationship secara langsung.
 
 ---
 
-# 42. Demo Data Relationship
+# 43. Demo Data Relationship
 
 Demo case:
 
@@ -2154,7 +2292,7 @@ complete audit history
 
 ---
 
-# 43. Related Documents
+# 44. Related Documents
 
 Workflow:
 
