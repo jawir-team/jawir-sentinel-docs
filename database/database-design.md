@@ -1,8 +1,8 @@
-# JAWIR Sentinel Database Design
+# Desain Database JAWIR Sentinel
 
-**Specification Version:** 1.0  
+**Versi Spesifikasi:** 1.0  
 **Status:** MVP Baseline  
-**Repository Path:** `jawir-sentinel-docs/database/database-design.md`
+**Path Repository:** `jawir-sentinel-docs/database/database-design.md`
 
 Dokumen ini mendefinisikan database design resmi JAWIR Sentinel MVP.
 
@@ -28,7 +28,7 @@ Dokumen ini menjadi source of truth untuk:
 
 ---
 
-# 1. Database Principles
+# 1. Prinsip Database
 
 Database JAWIR Sentinel dirancang untuk mendukung:
 
@@ -48,7 +48,7 @@ Prinsip utama:
 
 ---
 
-# 2. Core Tables
+# 2. Table Inti
 
 ```text
 units
@@ -77,7 +77,7 @@ audit_events
 
 ---
 
-# 3. ERD Overview
+# 3. Gambaran ERD
 
 ```text
 ┌─────────────┐
@@ -127,7 +127,7 @@ cases ────────────────────────�
 
 ---
 
-# 4. Relationship Summary
+# 4. Ringkasan Relationship
 
 | Parent | Child | Relationship |
 |---|---|---|
@@ -159,7 +159,7 @@ cases ────────────────────────�
 
 ---
 
-# 5. PostgreSQL Extensions
+# 5. Extension PostgreSQL
 
 Initial migration:
 
@@ -180,7 +180,7 @@ Semua PK menggunakan UUID.
 
 ---
 
-# 6. Naming Convention
+# 6. Konvensi Penamaan
 
 Table:
 
@@ -237,7 +237,7 @@ created_at   TIMESTAMPTZ   NOT NULL DEFAULT now()
 updated_at   TIMESTAMPTZ   NOT NULL DEFAULT now()
 ```
 
-Indexes:
+Index:
 
 ```text
 UNIQUE(code)
@@ -293,7 +293,7 @@ unit_id → units.id
 ON DELETE RESTRICT
 ```
 
-Indexes:
+Index:
 
 ```text
 UNIQUE(firebase_uid)
@@ -321,7 +321,7 @@ created_at   TIMESTAMPTZ   NOT NULL DEFAULT now()
 updated_at   TIMESTAMPTZ   NOT NULL DEFAULT now()
 ```
 
-Indexes:
+Index:
 
 ```text
 UNIQUE(code)
@@ -392,7 +392,7 @@ CLOSED
 ESCALATION_REQUIRED
 ```
 
-Foreign keys:
+Foreign key:
 
 ```text
 case_type_id → case_types.id ON DELETE RESTRICT
@@ -407,7 +407,7 @@ closed_by    → users.id      ON DELETE SET NULL
 current_analysis_id → ai_analyses.id ON DELETE SET NULL
 ```
 
-Indexes:
+Index:
 
 ```text
 UNIQUE(case_number)
@@ -423,7 +423,7 @@ INDEX(status, created_at DESC)
 INDEX(case_type_id, status)
 ```
 
-Business rules:
+Aturan bisnis:
 
 ```text
 CLOSED requires:
@@ -514,7 +514,7 @@ WHERE status = 'ACTIVE';
 
 Tidak ada unique-per-case index untuk `CHECKER` karena satu case dapat memiliki multiple Checker. Namun satu active user hanya boleh memegang satu workflow role pada case yang sama.
 
-Foreign keys:
+Foreign key:
 
 ```text
 case_id     → cases.id ON DELETE CASCADE
@@ -522,7 +522,7 @@ user_id     → users.id ON DELETE RESTRICT
 assigned_by → users.id ON DELETE RESTRICT
 ```
 
-Indexes:
+Index:
 
 ```text
 INDEX(case_id)
@@ -532,7 +532,7 @@ INDEX(case_id, role, required, status)
 INDEX(user_id, status)
 ```
 
-Business rules:
+Aturan bisnis:
 
 ```text
 MAKER:
@@ -599,7 +599,7 @@ Foreign key:
 case_type_id → case_types.id ON DELETE SET NULL
 ```
 
-Indexes:
+Index:
 
 ```text
 UNIQUE(code)
@@ -665,7 +665,7 @@ Constraint:
 UNIQUE(policy_id, version)
 ```
 
-Foreign keys:
+Foreign key:
 
 ```text
 policy_id   → policies.id ON DELETE CASCADE
@@ -673,7 +673,7 @@ created_by  → users.id    ON DELETE RESTRICT
 approved_by → users.id    ON DELETE SET NULL
 ```
 
-Indexes:
+Index:
 
 ```text
 INDEX(policy_id)
@@ -757,7 +757,7 @@ Constraint:
 UNIQUE(policy_version_id, chunk_index)
 ```
 
-Indexes:
+Index:
 
 ```text
 INDEX(policy_version_id)
@@ -857,14 +857,14 @@ REFERENCE
 EXECUTION_RESULT
 ```
 
-Foreign keys:
+Foreign key:
 
 ```text
 case_id        → cases.id ON DELETE CASCADE
 source_user_id → users.id ON DELETE SET NULL
 ```
 
-Indexes:
+Index:
 
 ```text
 INDEX(case_id)
@@ -985,7 +985,7 @@ Foreign key:
 case_id → cases.id ON DELETE CASCADE
 ```
 
-Indexes:
+Index:
 
 ```text
 INDEX(case_id)
@@ -996,7 +996,7 @@ INDEX(policy_status)
 INDEX(verification_status)
 ```
 
-Business rules:
+Aturan bisnis:
 
 ```text
 Analysis version starts from 1.
@@ -1081,14 +1081,14 @@ relevance_score    NUMERIC(6,5)  NULL
 created_at         TIMESTAMPTZ   NOT NULL DEFAULT now()
 ```
 
-Foreign keys:
+Foreign key:
 
 ```text
 analysis_id       → ai_analyses.id     ON DELETE CASCADE
 policy_version_id → policy_versions.id ON DELETE RESTRICT
 ```
 
-Indexes:
+Index:
 
 ```text
 INDEX(analysis_id)
@@ -1098,7 +1098,7 @@ INDEX(analysis_id, policy_version_id)
 
 Historical reference tidak berubah walaupun policy version berikutnya diaktifkan.
 
-Lifecycle rule:
+Aturan lifecycle:
 
 - refs are persisted for COMPLETED analyses;
 - refs are also persisted for FAILED analyses when a schema-valid candidate existed and verifier returned FAIL;
@@ -1129,7 +1129,7 @@ EXECUTION_FEEDBACK
 REVIEW_FEEDBACK
 ```
 
-Foreign keys:
+Foreign key:
 
 ```text
 analysis_id → ai_analyses.id    ON DELETE CASCADE
@@ -1144,7 +1144,7 @@ UNIQUE(analysis_id, evidence_id, usage_type)
 
 Evidence-ref lifecycle follows the same rule as policy refs: preserve provenance for COMPLETED and verifier-FAILED schema-valid analyses; do not fabricate refs from invalid/unvalidated output.
 
-Indexes:
+Index:
 
 ```text
 INDEX(analysis_id)
@@ -1191,7 +1191,7 @@ Constraint:
 UNIQUE(analysis_id, actor_id, actor_role)
 ```
 
-Foreign keys:
+Foreign key:
 
 ```text
 case_id     → cases.id       ON DELETE CASCADE
@@ -1199,7 +1199,7 @@ analysis_id → ai_analyses.id ON DELETE RESTRICT
 actor_id    → users.id       ON DELETE RESTRICT
 ```
 
-Indexes:
+Index:
 
 ```text
 INDEX(case_id)
@@ -1252,7 +1252,7 @@ BLOCKED
 FAILED
 ```
 
-Foreign keys:
+Foreign key:
 
 ```text
 case_id     → cases.id       ON DELETE CASCADE
@@ -1268,7 +1268,7 @@ UNIQUE(case_id, analysis_id)
 
 One authorized analysis can create at most one execution attempt. BLOCKED/FAILED requires re-analysis before another execution attempt can exist.
 
-Indexes:
+Index:
 
 ```text
 INDEX(case_id)
@@ -1278,7 +1278,7 @@ INDEX(status)
 INDEX(case_id, created_at DESC)
 ```
 
-Business rules:
+Aturan bisnis:
 
 ```text
 SUCCESS requires:
@@ -1338,14 +1338,14 @@ Constraint:
 UNIQUE(event_type, analysis_id)
 ```
 
-Foreign keys:
+Foreign key:
 
 ```text
 case_id     → cases.id       ON DELETE CASCADE
 analysis_id → ai_analyses.id ON DELETE CASCADE
 ```
 
-Indexes:
+Index:
 
 ```text
 INDEX(status, created_at)
@@ -1433,7 +1433,7 @@ CHECK (
 )
 ```
 
-Foreign keys:
+Foreign key:
 
 ```text
 case_id           → cases.id           ON DELETE CASCADE
@@ -1443,7 +1443,7 @@ actor_id          → users.id           ON DELETE SET NULL
 analysis_id       → ai_analyses.id     ON DELETE SET NULL
 ```
 
-Indexes:
+Index:
 
 ```text
 INDEX(scope_type)
@@ -1521,7 +1521,7 @@ actor_id = <admin user>
 actor_role = NULL
 ```
 
-Application invariants:
+Invariant aplikasi:
 
 - jika `analysis_id` tidak NULL, analysis harus belong ke `case_id`;
 - jika `policy_version_id` tidak NULL, version harus belong ke `policy_id`;
@@ -1535,7 +1535,7 @@ Application invariants:
 
 ---
 
-# 23. Current vs Historical Data
+# 23. Data Saat Ini vs Historis
 
 Current state disimpan pada:
 
@@ -1572,7 +1572,7 @@ Historical record tidak di-overwrite untuk menggantikan decision context lama.
 
 ---
 
-# 24. No Hard Delete Rule
+# 24. Aturan Tanpa Hard Delete
 
 Tidak ada hard delete melalui application API untuk:
 
@@ -1592,7 +1592,7 @@ Master data dapat dinonaktifkan melalui status jika diperlukan.
 
 ---
 
-# 25. Analysis Versioning Rule
+# 25. Aturan Versioning Analysis
 
 Per case:
 
@@ -1609,7 +1609,7 @@ Constraint:
 UNIQUE(case_id, version)
 ```
 
-New analysis request is prepared atomically:
+Request analysis baru disiapkan secara atomic:
 
 ```text
 1. Determine next version
@@ -1619,13 +1619,13 @@ New analysis request is prepared atomically:
 5. Commit
 ```
 
-Worker completion is a later transaction. Only a successfully verified COMPLETED analysis updates `cases.current_analysis_id` and persists its final provenance/analysis-completion audit. FAILED analysis never becomes current.
+Worker completion dilakukan pada transaction berikutnya. Only a successfully verified COMPLETED analysis updates `cases.current_analysis_id` and persists its final provenance/analysis-completion audit. FAILED analysis never becomes current.
 
 Worker claim/finalization must match `worker_attempt_id` so a late superseded consumer cannot overwrite a newer delivery claim.
 
 ---
 
-# 26. Approval Version Rule
+# 26. Aturan Version Approval
 
 Decision selalu terikat ke `analysis_id`.
 
@@ -1648,7 +1648,7 @@ cases.current_analysis_id
 
 ---
 
-# 27. Policy Version Rule
+# 27. Aturan Policy Version
 
 Policy:
 
@@ -1665,7 +1665,7 @@ Historical AI analysis tetap reference ke exact old policy version yang digunaka
 
 ---
 
-# 28. Policy Indexing and Activation
+# 28. Indexing dan Aktivasi Policy
 
 Activation uses **index first, activate second**.
 
@@ -1772,7 +1772,7 @@ AND effective date is valid
 
 ---
 
-# 29. Evidence Integrity Rule
+# 29. Aturan Integritas Evidence
 
 Evidence tidak dianggap authoritative policy.
 
@@ -1793,7 +1793,7 @@ policy_versions.status = ACTIVE
 
 ---
 
-# 30. Referential Integrity
+# 30. Integritas Referensial
 
 Critical FK menggunakan:
 
@@ -1817,7 +1817,7 @@ Application layer tetap tidak menyediakan hard delete workflow data.
 
 ---
 
-# 31. Transaction Rules
+# 31. Aturan Transaction
 
 Critical workflow mutation harus atomic.
 
@@ -1906,7 +1906,7 @@ HTTP:
 
 ---
 
-# 33. Locking Strategy
+# 33. Strategi Locking
 
 Critical mutation menggunakan row-level locking pada case:
 
@@ -1938,7 +1938,7 @@ Prevent race on current_analysis_id
 
 ---
 
-# 34. Case Number
+# 34. Nomor Case
 
 Format MVP:
 
@@ -1958,7 +1958,7 @@ Sequence generation dilakukan secara transaction-safe oleh backend/database.
 
 ---
 
-# 35. Timestamp Standard
+# 35. Standar Timestamp
 
 Semua timestamp menggunakan:
 
@@ -1976,7 +1976,7 @@ Display timezone menjadi tanggung jawab client.
 
 ---
 
-# 36. JSONB Usage
+# 36. Penggunaan JSONB
 
 JSONB digunakan untuk AI-generated structured data:
 
@@ -2010,9 +2010,9 @@ Relational traceability
 
 ---
 
-# 37. Index Strategy
+# 37. Strategi Index
 
-## Workflow Query
+## Query Workflow
 
 ```text
 cases(status, created_at DESC)
@@ -2020,7 +2020,7 @@ case_participants(case_id, role, required, status)
 decisions(analysis_id, actor_role)
 ```
 
-## User Assignment
+## Assignment User
 
 ```text
 case_participants(user_id, status)
@@ -2135,7 +2135,7 @@ SOP-COMP-001 Evidence and Approval Requirement
 
 ---
 
-# 39. Migration Order
+# 39. Urutan Migration
 
 Recommended migration sequence:
 
@@ -2163,7 +2163,7 @@ Recommended migration sequence:
 
 ---
 
-# 40. Migration File Naming
+# 40. Penamaan File Migration
 
 ```text
 000001_enable_extensions.up.sql
@@ -2177,7 +2177,7 @@ Migration harus reversible selama memungkinkan.
 
 ---
 
-# 41. Data Lifecycle
+# 41. Lifecycle Data
 
 ## Case
 
@@ -2225,7 +2225,7 @@ Assignment history tetap disimpan.
 
 ---
 
-# 42. Database Invariants
+# 42. Invariant Database
 
 Invariant berikut harus selalu benar:
 
@@ -2273,7 +2273,7 @@ Invariant nomor 8 harus divalidasi di application layer karena FK standar tidak 
 
 ---
 
-# 43. Demo Data Relationship
+# 43. Relationship Data Demo
 
 Demo case:
 
@@ -2304,7 +2304,7 @@ complete audit history
 
 ---
 
-# 44. Related Documents
+# 44. Dokumen Terkait
 
 Workflow:
 
