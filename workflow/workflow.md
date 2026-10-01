@@ -84,6 +84,8 @@ Satu case dapat memiliki lebih dari satu Checker.
 
 Semua required Checker harus `APPROVE` sebelum case dapat masuk ke `SIGNING`.
 
+Non-required Checker tidak menahan completion bila belum memberi decision. Namun setiap active Checker yang mengirim `REJECT` saat case masih `CHECKING` tetap mengakhiri review round dan memicu governed re-analysis/escalation flow.
+
 ---
 
 ## 2.3 Signer
