@@ -142,7 +142,9 @@ cases ────────────────────────�
 | cases | ai_analyses | 1:N |
 | cases | decisions | 1:N |
 | cases | executions | 1:N |
-| cases | audit_events | 1:N |
+| cases | audit_events (CASE scope) | 1:N |
+| policies | audit_events (POLICY scope) | 1:N |
+| policy_versions | audit_events (POLICY scope, optional) | 1:N |
 | policies | policy_versions | 1:N |
 | policy_versions | policy_chunks | 1:N |
 | ai_analyses | analysis_policy_refs | 1:N |
@@ -1089,39 +1091,97 @@ FAILED requires:
 
 # 21. `audit_events`
 
-Menyimpan append-only workflow history.
+Menyimpan append-only audit history untuk case workflow dan policy lifecycle menggunakan satu table dengan explicit scope.
 
 ```text
 audit_events
 ------------
-id                UUID          PK
-case_id           UUID          NOT NULL FK → cases.id
-event_type        VARCHAR(60)   NOT NULL
-actor_id          UUID          NULL FK → users.id
-actor_role        VARCHAR(20)   NULL
-analysis_id       UUID          NULL FK → ai_analyses.id
-metadata          JSONB         NOT NULL DEFAULT '{}'
-created_at        TIMESTAMPTZ   NOT NULL DEFAULT now()
+id                 UUID          PK
+scope_type         VARCHAR(20)   NOT NULL
+
+case_id            UUID          NULL FK → cases.id
+policy_id          UUID          NULL FK → policies.id
+policy_version_id  UUID          NULL FK → policy_versions.id
+
+event_type         VARCHAR(60)   NOT NULL
+actor_id           UUID          NULL FK → users.id
+actor_role         VARCHAR(20)   NULL
+analysis_id        UUID          NULL FK → ai_analyses.id
+
+metadata           JSONB         NOT NULL DEFAULT '{}'
+created_at         TIMESTAMPTZ   NOT NULL DEFAULT now()
+```
+
+Allowed scope:
+
+```text
+CASE
+POLICY
+```
+
+Scope invariants:
+
+```text
+CASE scope:
+- case_id REQUIRED
+- policy_id NULL
+- policy_version_id NULL
+- analysis_id optional
+- actor_role may contain case workflow role or NULL for SYSTEM event
+
+POLICY scope:
+- case_id NULL
+- policy_id REQUIRED
+- policy_version_id optional
+- analysis_id NULL
+- actor_role NULL
+```
+
+Recommended check constraint:
+
+```sql
+CHECK (
+  (
+    scope_type = 'CASE'
+    AND case_id IS NOT NULL
+    AND policy_id IS NULL
+    AND policy_version_id IS NULL
+  )
+  OR
+  (
+    scope_type = 'POLICY'
+    AND case_id IS NULL
+    AND policy_id IS NOT NULL
+    AND analysis_id IS NULL
+    AND actor_role IS NULL
+  )
+)
 ```
 
 Foreign keys:
 
 ```text
-case_id     → cases.id       ON DELETE CASCADE
-actor_id    → users.id       ON DELETE SET NULL
-analysis_id → ai_analyses.id ON DELETE SET NULL
+case_id           → cases.id           ON DELETE CASCADE
+policy_id         → policies.id        ON DELETE RESTRICT
+policy_version_id → policy_versions.id ON DELETE RESTRICT
+actor_id          → users.id           ON DELETE SET NULL
+analysis_id       → ai_analyses.id     ON DELETE SET NULL
 ```
 
 Indexes:
 
 ```text
-INDEX(case_id)
+INDEX(scope_type)
 INDEX(event_type)
 INDEX(actor_id)
+INDEX(case_id)
 INDEX(case_id, created_at ASC)
+INDEX(policy_id)
+INDEX(policy_id, created_at ASC)
+INDEX(policy_version_id)
 ```
 
-Audit events:
+CASE scope events:
 
 ```text
 CASE_CREATED
@@ -1150,16 +1210,50 @@ EXECUTION_STARTED
 EXECUTION_BLOCKED
 EXECUTION_FAILED
 EXECUTION_SUCCESS
+```
 
+POLICY scope events:
+
+```text
 POLICY_CREATED
 POLICY_VERSION_CREATED
 POLICY_ACTIVATED
 POLICY_SUPERSEDED
 ```
 
-Audit event tidak memiliki `updated_at`.
+Examples:
 
-Application API tidak menyediakan update/delete audit event.
+```text
+CHECKER_REJECTED
+scope_type = CASE
+case_id = <case>
+analysis_id = <analysis>
+actor_id = <checker>
+actor_role = CHECKER
+
+POLICY_CREATED
+scope_type = POLICY
+policy_id = <policy>
+policy_version_id = NULL
+actor_id = <admin user>
+actor_role = NULL
+
+POLICY_ACTIVATED
+scope_type = POLICY
+policy_id = <policy>
+policy_version_id = <activated version>
+actor_id = <admin user>
+actor_role = NULL
+```
+
+Application invariants:
+
+- jika `analysis_id` tidak NULL, analysis harus belong ke `case_id`;
+- jika `policy_version_id` tidak NULL, version harus belong ke `policy_id`;
+- jangan membuat fake `case_id` untuk policy event;
+- `is_admin` adalah authorization attribute, bukan workflow `actor_role`;
+- audit event tidak memiliki `updated_at`;
+- application API tidak menyediakan update/delete audit event.
 
 ---
 
@@ -1778,8 +1872,9 @@ Invariant berikut harus selalu benar:
 11. DONE only after successful execution.
 12. CLOSED requires close metadata.
 13. audit events are append-only.
-14. historical analysis is never overwritten.
-15. historical policy references remain stable.
+14. audit scope invariants are valid; policy events never use fake case_id.
+15. historical analysis is never overwritten.
+16. historical policy references remain stable.
 ```
 
 Invariant nomor 8 harus divalidasi di application layer karena FK standar tidak dapat memastikan cross-column same-case relationship secara langsung.
