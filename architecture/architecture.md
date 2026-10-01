@@ -1,8 +1,8 @@
-# JAWIR Sentinel Architecture
+# Arsitektur JAWIR Sentinel
 
-**Specification Version:** 1.0  
+**Versi Spesifikasi:** 1.0  
 **Status:** MVP Baseline  
-**Repository Path:** `jawir-sentinel-docs/architecture/architecture.md`
+**Path Repository:** `jawir-sentinel-docs/architecture/architecture.md`
 
 Dokumen ini mendefinisikan arsitektur resmi JAWIR Sentinel MVP.
 
@@ -19,7 +19,7 @@ Arsitektur dirancang untuk:
 
 ---
 
-# 1. Architecture Principle
+# 1. Prinsip Arsitektur
 
 Prinsip utama sistem:
 
@@ -49,7 +49,7 @@ Backend adalah satu-satunya komponen yang mengontrol business transition.
 
 ---
 
-# 2. System Context
+# 2. Konteks Sistem
 
 JAWIR Sentinel terdiri dari:
 
@@ -92,7 +92,7 @@ PostgreSQL remains workflow truth. RabbitMQ transports work; it never becomes wo
 
 ---
 
-# 3. High-Level Architecture
+# 3. Arsitektur Tingkat Tinggi
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
@@ -171,7 +171,7 @@ Rabbit delivery is at-least-once. Consumer/finalization logic must therefore be 
 
 ---
 
-# 4. Repository Architecture
+# 4. Arsitektur Repository
 
 GitHub Organization:
 
@@ -206,11 +206,11 @@ jawir-sentinel-docs
 → architecture contract
 ```
 
-Docs repository menjadi single source of truth untuk contract lintas repository.
+Docs repository menjadi single sumber kebenaran untuk contract lintas repository.
 
 ---
 
-# 5. Deployment Architecture
+# 5. Arsitektur Deployment
 
 ```text
 Internet
@@ -267,7 +267,7 @@ sentinel-api verifies token
 
 ---
 
-# 6. Frontend Architecture
+# 6. Arsitektur Frontend
 
 Frontend stack:
 
@@ -327,7 +327,7 @@ UI Preference
 
 ---
 
-# 7. Backend Architecture
+# 7. Arsitektur Backend
 
 Backend menggunakan satu modular-monolith codebase dengan dua runtime modes.
 
@@ -372,7 +372,7 @@ Business authority remains in shared application/domain services and PostgreSQL.
 
 ---
 
-# 8. Backend Layering
+# 8. Layering Backend
 
 Logical layers:
 
@@ -414,7 +414,7 @@ Workflow rules berada pada application/domain layer.
 
 ---
 
-# 9. Backend Package Boundary
+# 9. Batas Package Backend
 
 ```text
 internal/
@@ -451,7 +451,7 @@ Cross-module call dilakukan melalui service interface yang jelas.
 
 ---
 
-# 10. Workflow Architecture
+# 10. Arsitektur Workflow
 
 Workflow state machine berada di backend.
 
@@ -499,7 +499,7 @@ execute
 close
 ```
 
-## 10.1 Case Governance Snapshot
+## 10.1 Snapshot Governance Case
 
 Case menggunakan logical governance snapshot pada saat submission.
 
@@ -544,7 +544,7 @@ Jika participant pada case berjalan harus diganti, backend tidak melakukan role 
 
 ---
 
-# 11. Authentication Architecture
+# 11. Arsitektur Authentication
 
 Identity provider:
 
@@ -578,7 +578,7 @@ Backend authorization tidak bergantung pada frontend state.
 
 ---
 
-# 12. Authorization Architecture
+# 12. Arsitektur Authorization
 
 Sentinel separates **system role** from **case workflow role**.
 
@@ -656,7 +656,7 @@ allow
 
 ---
 
-# 13. Data Architecture
+# 13. Arsitektur Data
 
 Primary database:
 
@@ -690,9 +690,9 @@ Operational Outbox Data
 
 ---
 
-# 14. Current State Data
+# 14. Data State Saat Ini
 
-Current state:
+State saat ini:
 
 ```text
 cases.status
@@ -718,9 +718,9 @@ Data ini dapat berubah sesuai workflow.
 
 ---
 
-# 15. Historical Data
+# 15. Data Historis
 
-Historical data:
+Data historis:
 
 ```text
 ai_analyses
@@ -737,7 +737,7 @@ Historical data tidak di-overwrite untuk menggantikan decision context lama.
 
 ---
 
-# 16. AI Architecture
+# 16. Arsitektur AI
 
 AI subsystem dijalankan oleh `sentinel-worker`.
 
@@ -825,7 +825,7 @@ Context Builder preserves provenance IDs so generated facts/recommendations can 
 
 ---
 
-# 18. Policy Retrieval Architecture
+# 18. Arsitektur Policy Retrieval
 
 Policy retrieval menggunakan:
 
@@ -911,7 +911,7 @@ Reviewer feedback bukan policy authority.
 
 ---
 
-# 19. Policy Ingestion Architecture
+# 19. Arsitektur Policy Ingestion
 
 Policy creation and activation:
 
@@ -1031,7 +1031,7 @@ Historical analysis tetap reference ke version lama yang digunakan saat decision
 
 ---
 
-# 20. AI Analysis Flow
+# 20. Alur Analisis AI
 
 Queueing phase:
 
@@ -1132,7 +1132,7 @@ Every worker-owned DB mutation must validate the current `worker_attempt_id`, in
 
 ---
 
-# 21. AI Output Boundary
+# 21. Batas Output AI
 
 AI boleh menghasilkan:
 
@@ -1167,7 +1167,7 @@ Delete Audit Data
 
 ---
 
-# 22. Re-analysis Architecture
+# 22. Arsitektur Re-analysis
 
 Trigger:
 
@@ -1241,7 +1241,7 @@ Approval tidak diwariskan ke version baru.
 
 ---
 
-# 23. Concurrency Architecture
+# 23. Arsitektur Concurrency
 
 Critical mutation menggunakan database transaction dan row lock.
 
@@ -1278,7 +1278,7 @@ Participant assignment and ACTIVE→INACTIVE user mutation must serialize on the
 
 ---
 
-# 24. Stale Analysis Protection
+# 24. Proteksi Stale Analysis
 
 Decision request selalu membawa:
 
@@ -1310,7 +1310,7 @@ Require Human Re-review
 
 ---
 
-# 25. Transaction Architecture
+# 25. Arsitektur Transaction
 
 Critical workflow mutation and AI job creation are atomic through the transactional outbox.
 
@@ -1361,7 +1361,7 @@ Outbox delivery is at-least-once. Duplicate RabbitMQ deliveries are safe because
 
 ---
 
-# 26. File Storage Architecture
+# 26. Arsitektur File Storage
 
 Evidence file flow:
 
@@ -1401,7 +1401,7 @@ Unsupported MIME types are rejected rather than stored as AI-invisible evidence.
 
 ---
 
-# 27. Evidence Architecture
+# 27. Arsitektur Evidence
 
 Evidence sources:
 
@@ -1456,7 +1456,7 @@ Evidence tidak memiliki policy authority.
 
 ---
 
-# 28. Audit Architecture
+# 28. Arsitektur Audit
 
 Audit data disimpan pada satu table:
 
@@ -1498,7 +1498,7 @@ actor_id
 
 Policy event tidak menggunakan fake `case_id`. Pada POLICY scope, `actor_role` adalah NULL; authorization admin berasal dari `users.system_role = ADMIN`, bukan role workflow.
 
-Case AI failure reason is stored in audit metadata rather than new case columns:
+Alasan kegagalan AI pada case disimpan di audit metadata, bukan di column baru pada case:
 
 ```text
 AI_ANALYSIS_FAILED
@@ -1554,7 +1554,7 @@ Policy history endpoint tidak wajib untuk MVP; policy audit tetap dipersist untu
 
 ---
 
-# 29. Decision Snapshot
+# 29. Snapshot Decision
 
 Saat Signer approve, backend menyimpan decision snapshot pada audit metadata.
 
@@ -1580,7 +1580,7 @@ Decision reproducibility
 
 ---
 
-# 30. Error Architecture
+# 30. Arsitektur Error
 
 Backend error contract:
 
@@ -1610,7 +1610,7 @@ Frontend menginterpretasikan `error.code`.
 
 ---
 
-# 31. Reliability Architecture
+# 31. Arsitektur Reliability
 
 MVP reliability principles:
 
@@ -1682,9 +1682,9 @@ Business re-analysis remains bounded independently by `MAX_REANALYSIS`.
 
 ---
 
-# 32. AI Failure Handling
+# 32. Penanganan Kegagalan AI
 
-Case-analysis terminal escalation causes are intentionally limited to:
+Penyebab terminal escalation untuk case-analysis sengaja dibatasi menjadi:
 
 ```text
 VERIFIER_FAIL
@@ -1692,7 +1692,7 @@ TECHNICAL_RETRY_EXHAUSTED
 REANALYSIS_LIMIT_REACHED
 ```
 
-Technical failures such as Vertex unavailability, timeout, or retryable invalid structured output first consume `AI_TECHNICAL_MAX_RETRIES`. Only exhaustion becomes `TECHNICAL_RETRY_EXHAUSTED`.
+Kegagalan teknis seperti Vertex unavailability, timeout, or retryable invalid structured output first consume `AI_TECHNICAL_MAX_RETRIES`. Only exhaustion becomes `TECHNICAL_RETRY_EXHAUSTED`.
 
 `POLICY_CONFLICT` is analysis/verifier information, not a direct workflow transition. It only escalates when verification resolves to `FAIL`.
 
@@ -1720,7 +1720,7 @@ not available:
 
 ---
 
-# 33. Observability Architecture
+# 33. Arsitektur Observability
 
 Application menggunakan structured logging.
 
@@ -1752,7 +1752,7 @@ Evidence content sensitif tidak ditulis ke logs.
 
 ---
 
-# 34. Request Correlation
+# 34. Korelasi Request
 
 Setiap inbound request memiliki:
 
@@ -1774,7 +1774,7 @@ Audit event tetap menggunakan domain event ID sendiri.
 
 ---
 
-# 35. Security Architecture
+# 35. Arsitektur Security
 
 Security boundary:
 
@@ -1801,7 +1801,7 @@ Backend service account memiliki access minimum yang diperlukan.
 
 ---
 
-# 36. Service Permissions
+# 36. Permission Service
 
 `sentinel-api` membutuhkan permission untuk:
 
@@ -1823,7 +1823,7 @@ Backend Storage Credential
 
 ---
 
-# 37. Data Security
+# 37. Keamanan Data
 
 MVP menggunakan synthetic data.
 
@@ -1840,7 +1840,7 @@ Evidence demo juga synthetic.
 
 ---
 
-# 38. Prompt Injection Boundary
+# 38. Batas Prompt Injection
 
 Attachment dan evidence diperlakukan sebagai:
 
@@ -1868,7 +1868,7 @@ Policy authority ditentukan backend metadata, bukan isi prompt.
 
 ---
 
-# 39. Network Architecture
+# 39. Arsitektur Network
 
 Logical network flow:
 
@@ -1895,7 +1895,7 @@ Public client tidak terhubung langsung ke database.
 
 ---
 
-# 40. CI/CD Architecture
+# 40. Arsitektur CI/CD
 
 ## Frontend
 
@@ -1951,7 +1951,7 @@ sentinel-api
 
 ---
 
-# 41. Environment Architecture
+# 41. Arsitektur Environment
 
 Environments:
 
@@ -1986,7 +1986,7 @@ separate deployment
 
 ---
 
-# 42. Configuration Architecture
+# 42. Arsitektur Konfigurasi
 
 Backend env:
 
@@ -2026,7 +2026,7 @@ NEXT_PUBLIC_FIREBASE_APP_ID
 
 ---
 
-# 43. Sequence — Create and Submit Case
+# 43. Sequence — Create dan Submit Case
 
 ```text
 Maker
@@ -2067,7 +2067,7 @@ No RabbitMQ/Vertex call occurs in the request transaction.
 
 ---
 
-# 44. Sequence — AI Analysis
+# 44. Sequence — Analisis AI
 
 ```text
 sentinel-worker Outbox Dispatcher
@@ -2200,7 +2200,7 @@ RabbitMQ worker path only when queued
 
 ---
 
-# 48. Scalability Boundary
+# 48. Batas Skalabilitas
 
 MVP menggunakan modular monolith.
 
@@ -2218,7 +2218,7 @@ MVP tidak melakukan split tersebut.
 
 ---
 
-# 49. Model Provider Boundary
+# 49. Batas Model Provider
 
 AI orchestration tidak mengikat core workflow langsung ke Gemini API call.
 
@@ -2244,7 +2244,7 @@ Future provider dapat diganti tanpa mengubah workflow state machine.
 
 ---
 
-# 50. Architecture Invariants
+# 50. Invariant Arsitektur
 
 Invariant berikut harus selalu benar:
 
@@ -2296,7 +2296,7 @@ Invariant berikut harus selalu benar:
 
 ---
 
-# 51. Related Documents
+# 51. Dokumen Terkait
 
 Workflow:
 
@@ -2328,4 +2328,4 @@ Frontend Implementation:
 jawir-sentinel-fe/README.md
 ```
 
-Dokumen ini menjadi source of truth untuk system architecture JAWIR Sentinel MVP.
+Dokumen ini menjadi sumber kebenaran untuk system architecture JAWIR Sentinel MVP.
