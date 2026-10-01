@@ -488,7 +488,7 @@ Approve
 Reject
 Sign
 Execute
-Re-analyze
+Trigger re-analysis langsung
 Resume workflow
 Reset retry/re-analysis quota
 Edit case core data
@@ -1573,7 +1573,7 @@ Recommend
 Generate Alternatives
 Identify Missing Information
 Verify Analysis
-Re-analyze
+Generate Analysis for Governed Re-analysis
 ```
 
 AI tidak memiliki authority untuk:
