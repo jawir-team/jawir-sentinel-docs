@@ -1126,7 +1126,7 @@ finalization transaction
 
 If finalization fails before commit, the worker does not ACK; RabbitMQ may redeliver.
 
-Every finalization transaction must validate the current `worker_attempt_id`. A late superseded worker may finish an external model call, but it cannot write analysis results or transition workflow state.
+Every worker-owned DB mutation must validate the current `worker_attempt_id`, including `technical_retry_count` increments and finalization. A late superseded worker may finish an external model call, but it cannot consume retry budget, write analysis results, or transition workflow state.
 
 `AI_WORKER_LEASE_SECONDS` controls stale worker-claim recovery. `technical_retry_count` remains persisted on the analysis and is never reset by redelivery/reclaim.
 
