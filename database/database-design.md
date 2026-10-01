@@ -900,6 +900,7 @@ id                    UUID          PK
 case_id               UUID          NOT NULL FK → cases.id
 version               INTEGER       NOT NULL
 status                VARCHAR(20)   NOT NULL
+technical_retry_count INTEGER       NOT NULL DEFAULT 0
 
 summary               TEXT          NULL
 
@@ -996,6 +997,7 @@ Business rules:
 ```text
 Analysis version starts from 1.
 Version increases monotonically per case.
+technical_retry_count persists technical retry consumption for the same analysis version across worker restart/redelivery.
 Historical analysis is never overwritten.
 ```
 
@@ -1518,7 +1520,7 @@ Application invariants:
 - jika `analysis_id` tidak NULL, analysis harus belong ke `case_id`;
 - jika `policy_version_id` tidak NULL, version harus belong ke `policy_id`;
 - jangan membuat fake `case_id` untuk policy event;
-- `is_admin` adalah authorization attribute, bukan workflow `actor_role`;
+- `system_role = ADMIN` adalah authorization attribute, bukan workflow `actor_role`;
 - `AI_ANALYSIS_FAILED.metadata.failure_type` is one of `VERIFIER_FAIL` or `TECHNICAL_RETRY_EXHAUSTED`;
 - `REANALYSIS_LIMIT_REACHED.metadata` stores at least `latest_analysis_version` and `max_reanalysis`;
 - escalation cause uses audit metadata; no additional case escalation-reason column is required for MVP;
@@ -2254,6 +2256,7 @@ Invariant berikut harus selalu benar:
 31. file evidence used by AI has a supported MIME type and case-scoped GCS object.
 32. policy indexing finalization must match current index_attempt_id; stale attempts cannot overwrite a newer attempt.
 33. policy activation requires READY + currently effective target.
+34. technical_retry_count is monotonic within a GENERATING analysis and prevents RabbitMQ redelivery from resetting the configured technical retry budget.
 ```
 
 Invariant nomor 8 harus divalidasi di application layer karena FK standar tidak dapat memastikan cross-column same-case relationship secara langsung.
