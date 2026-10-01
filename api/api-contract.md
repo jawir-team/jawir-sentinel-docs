@@ -129,6 +129,23 @@ ACTIVE
 SUPERSEDED
 ```
 
+## Policy Index Status
+
+```text
+NOT_STARTED
+PROCESSING
+READY
+FAILED
+```
+
+## Analysis Status
+
+```text
+GENERATING
+COMPLETED
+FAILED
+```
+
 ## AI Policy Status
 
 ```text
@@ -460,6 +477,10 @@ Response:
   }
 }
 ```
+
+---
+
+`current_analysis` may be `null` when no COMPLETED PASS/PASS_WITH_WARNING analysis has ever become reviewable. It is not guaranteed to be the latest analysis attempt.
 
 ---
 
@@ -1264,7 +1285,8 @@ Response:
       "active_version": {
         "id": "uuid",
         "version": "1.0",
-        "status": "ACTIVE"
+        "status": "ACTIVE",
+        "index_status": "READY"
       }
     }
   ],
