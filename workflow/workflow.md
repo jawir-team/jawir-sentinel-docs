@@ -501,7 +501,7 @@ MVP tidak memiliki resume/reopen dari `ESCALATION_REQUIRED`. Jika masalah perlu 
 
 # 7. Tabel Transisi State
 
-| Current State | Event | Next State |
+| State Saat Ini | Event | State Berikutnya |
 |---|---|---|
 | DRAFT | SUBMIT | SUBMITTED |
 | SUBMITTED | START_ANALYSIS | AI_ANALYSIS |
