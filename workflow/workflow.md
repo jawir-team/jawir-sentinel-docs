@@ -632,11 +632,37 @@ then:
 AI_ANALYSIS → CHECKING
 ```
 
-If repeated analysis failure reaches configured limit:
+Technical retry policy is configured at runtime:
 
 ```text
+AI_TECHNICAL_MAX_RETRIES=<non-negative integer>
+```
+
+Semantics:
+
+```text
+initial provider/model attempt
++ up to AI_TECHNICAL_MAX_RETRIES retry attempts
+= one business analysis cycle / one analysis version
+```
+
+Retryable technical failures include timeout, transient provider failure, and invalid structured model response that is explicitly retried by the analysis orchestration.
+
+Verifier `FAIL` is a semantic verification result and is not retried as a technical provider failure.
+
+If the technical retry budget is exhausted:
+
+```text
+mark analysis FAILED
+↓
+Audit AI_ANALYSIS_FAILED
+↓
+ANALYSIS_FAILED_LIMIT
+↓
 AI_ANALYSIS → ESCALATION_REQUIRED
 ```
+
+Technical retries never consume `MAX_REANALYSIS` and never create a new analysis version.
 
 ---
 
@@ -1309,6 +1335,24 @@ reanalysis_count = latest_analysis_version - 1
 
 Technical retry terhadap model/provider **tidak** menambah analysis version dan **tidak** menambah re-analysis count.
 
+Config runtime:
+
+```text
+AI_TECHNICAL_MAX_RETRIES=<non-negative integer>
+```
+
+`AI_TECHNICAL_MAX_RETRIES` berarti jumlah retry **setelah initial attempt**.
+
+Contoh:
+
+```text
+AI_TECHNICAL_MAX_RETRIES=2
+
+attempt 1 = initial
+attempt 2 = retry #1
+attempt 3 = retry #2
+```
+
 Contoh technical retry:
 
 ```text
@@ -1317,7 +1361,9 @@ temporary provider error
 malformed model response yang di-retry dalam analysis cycle yang sama
 ```
 
-Satu business analysis cycle hanya memperoleh satu `ai_analyses.version`. Retry teknis tetap berada pada cycle/version yang sama sampai cycle berhasil atau dinyatakan FAILED.
+Satu business analysis cycle hanya memperoleh satu `ai_analyses.version`. Retry teknis tetap berada pada cycle/version yang sama.
+
+Jika seluruh technical attempt habis tanpa usable result, current analysis menjadi `FAILED`, `AI_ANALYSIS_FAILED` diaudit, dan case masuk `ESCALATION_REQUIRED`.
 
 Other escalation trigger:
 
