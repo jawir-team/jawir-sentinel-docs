@@ -1349,6 +1349,12 @@ EXECUTION_FAILED
 EXECUTION_SUCCESS
 ```
 
+Seluruh workflow event di atas menggunakan `audit_events.scope_type = CASE`.
+
+Case audit minimal memiliki `case_id`; `analysis_id` dan `actor_role` diisi jika relevan. SYSTEM event dapat memiliki `actor_role = NULL`.
+
+Policy lifecycle audit menggunakan `scope_type = POLICY` dan didefinisikan pada database/architecture contract. Policy event tidak menggunakan fake `case_id`.
+
 Audit event bersifat append-only pada application layer.
 
 ---
