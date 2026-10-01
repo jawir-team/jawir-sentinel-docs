@@ -860,6 +860,29 @@ Response shape sama dengan current analysis.
 
 Historical analysis bersifat read-only.
 
+Analysis result-field semantics:
+
+```text
+status = GENERATING
+→ structured result fields may be null
+
+status = COMPLETED
+→ all required structured result fields are present
+→ verification.status = PASS | PASS_WITH_WARNING
+
+status = FAILED before valid analysis output
+→ unavailable structured result fields are null
+→ verification may be null
+
+status = FAILED after verifier FAIL
+→ schema-valid analysis fields may be present
+→ verification.status = FAIL
+```
+
+`null` means the value was not produced. An empty list/object means a valid output was produced and is intentionally empty.
+
+Clients must not interpret null as `NO_POLICY_FOUND`, empty evidence, PASS/FAIL, or any other business conclusion.
+
 ---
 
 ## POST `/cases/{case_id}/reanalyze`
