@@ -344,6 +344,8 @@ Request:
 
 Create draft case.
 
+The authenticated creator is automatically assigned as the case's single active `MAKER`. Maker assignment cannot be replaced or unassigned.
+
 Request:
 
 ```json
@@ -497,15 +499,31 @@ Response:
 }
 ```
 
+Preconditions:
+
+```text
+case.status = DRAFT
+authenticated user = Maker
+
+exactly 1 active Maker
+at least 1 active required Checker
+exactly 1 active Signer
+exactly 1 active Executer
+
+segregation of duties valid
+```
+
 Behavior:
 
 ```text
-DRAFT
+validate participant cardinality + SoD
+→ freeze case core data + participant set
+→ DRAFT
 → SUBMITTED
 → AI_ANALYSIS
 ```
 
-Backend triggers AI analysis.
+After submission, case core fields and participant assignments are immutable. Backend triggers AI analysis.
 
 ---
 
@@ -566,7 +584,28 @@ Once the case is `CLOSED`, asynchronous AI completion or later workflow actions 
 
 # 9. Case Participants
 
+Participant mutation is valid **only while the case is `DRAFT`**.
+
+Maker is created automatically with the case and cannot be assigned, unassigned, or replaced through the participant API.
+
+Cardinality at submit:
+
+```text
+MAKER     exactly 1 active
+CHECKER   1..N active, at least 1 required
+SIGNER    exactly 1 active
+EXECUTER  exactly 1 active
+```
+
 ## POST `/cases/{case_id}/participants`
+
+Allowed role through this endpoint:
+
+```text
+CHECKER
+SIGNER
+EXECUTER
+```
 
 Request:
 
@@ -593,7 +632,15 @@ Response:
 }
 ```
 
+If the case is no longer `DRAFT`:
+
+```text
+409 INVALID_STATE_TRANSITION
+```
+
 ## DELETE `/cases/{case_id}/participants/{participant_id}`
+
+Only valid for `CHECKER`, `SIGNER`, or `EXECUTER` assignments while the case is `DRAFT`.
 
 Response:
 
@@ -605,6 +652,8 @@ Response:
   }
 }
 ```
+
+After submission, the participant set is frozen. If a participant must be replaced, close the current case with an explicit reason and create a new case with the new participant set. MVP has no participant replacement or reopen flow for an in-flight/closed case.
 
 ---
 
