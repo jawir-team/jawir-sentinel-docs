@@ -1097,15 +1097,9 @@ Untuk `ESCALATION_REQUIRED`, MVP tidak menyediakan action resume/retry/reanalyze
 
 ---
 
-## Manual Re-analysis
+## Pemicu Re-analysis
 
-MVP **tidak** menyediakan:
-
-```http
-POST /cases/{case_id}/reanalyze
-```
-
-Analysis version baru hanya dapat dipicu oleh governed business action:
+Analysis version baru hanya dapat dibuat sebagai konsekuensi dari governed business action berikut:
 
 ```text
 CHECKER_REJECTED
@@ -1113,6 +1107,8 @@ SIGNER_REJECTED
 EXECUTION_BLOCKED
 EXECUTION_FAILED
 ```
+
+Tidak ada action atau endpoint generic untuk meminta re-analysis secara langsung.
 
 Menambahkan evidence saja tidak otomatis membuat analysis version baru.
 
