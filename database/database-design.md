@@ -1211,6 +1211,14 @@ analysis_id → ai_analyses.id ON DELETE RESTRICT
 executer_id → users.id       ON DELETE RESTRICT
 ```
 
+Constraint:
+
+```text
+UNIQUE(case_id, analysis_id)
+```
+
+One authorized analysis can create at most one execution attempt. BLOCKED/FAILED requires re-analysis before another execution attempt can exist.
+
 Indexes:
 
 ```text
