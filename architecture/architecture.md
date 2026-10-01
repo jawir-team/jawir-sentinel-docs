@@ -430,6 +430,8 @@ internal/
 ├── review
 ├── execution
 ├── audit
+├── outbox
+├── messaging
 └── ai
 ```
 
