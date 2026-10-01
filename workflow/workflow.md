@@ -606,7 +606,13 @@ START_ANALYSIS
 ↓
 SUBMITTED → AI_ANALYSIS
 ↓
-Trigger AI Analysis
+Start AI Cycle after submit commit
+↓
+Allocate GENERATING Analysis v1
+↓
+Audit AI_ANALYSIS_STARTED
+↓
+Trigger external AI work
 ```
 
 Result:
