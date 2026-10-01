@@ -832,6 +832,7 @@ evidence_type   VARCHAR(30)   NOT NULL
 title           VARCHAR(255)  NULL
 content         TEXT          NULL
 file_path       TEXT          NULL
+mime_type       VARCHAR(100)  NULL
 created_at      TIMESTAMPTZ   NOT NULL DEFAULT now()
 ```
 
@@ -901,6 +902,8 @@ case_id               UUID          NOT NULL FK → cases.id
 version               INTEGER       NOT NULL
 status                VARCHAR(20)   NOT NULL
 technical_retry_count INTEGER       NOT NULL DEFAULT 0
+worker_attempt_id     UUID          NULL
+worker_started_at     TIMESTAMPTZ   NULL
 
 summary               TEXT          NULL
 
@@ -988,6 +991,7 @@ Indexes:
 INDEX(case_id)
 INDEX(case_id, version DESC)
 INDEX(status)
+INDEX(worker_started_at)
 INDEX(policy_status)
 INDEX(verification_status)
 ```
@@ -998,6 +1002,8 @@ Business rules:
 Analysis version starts from 1.
 Version increases monotonically per case.
 technical_retry_count persists technical retry consumption for the same analysis version across worker restart/redelivery.
+worker_attempt_id + worker_started_at form the processing claim for a GENERATING analysis.
+A finalization write must match the currently claimed worker_attempt_id.
 Historical analysis is never overwritten.
 ```
 
@@ -1603,18 +1609,19 @@ Constraint:
 UNIQUE(case_id, version)
 ```
 
-New analysis process:
+New analysis request is prepared atomically:
 
 ```text
 1. Determine next version
-2. Insert ai_analyses
-3. Insert policy refs
-4. Insert evidence refs
-5. Update cases.current_analysis_id
-6. Audit analysis completion
+2. Insert ai_analyses(status = GENERATING)
+3. Audit AI_ANALYSIS_STARTED
+4. Insert unique PENDING outbox AI_ANALYSIS_REQUESTED
+5. Commit
 ```
 
-Update current analysis dan related references harus dilakukan dalam transaction setelah analysis berhasil diverifikasi.
+Worker completion is a later transaction. Only a successfully verified COMPLETED analysis updates `cases.current_analysis_id` and persists its final provenance/analysis-completion audit. FAILED analysis never becomes current.
+
+Worker claim/finalization must match `worker_attempt_id` so a late superseded consumer cannot overwrite a newer delivery claim.
 
 ---
 
@@ -2257,6 +2264,8 @@ Invariant berikut harus selalu benar:
 32. policy indexing finalization must match current index_attempt_id; stale attempts cannot overwrite a newer attempt.
 33. policy activation requires READY + currently effective target.
 34. technical_retry_count is monotonic within a GENERATING analysis and prevents RabbitMQ redelivery from resetting the configured technical retry budget.
+35. GENERATING analysis worker finalization requires the current worker_attempt_id; stale worker attempts have no write authority.
+36. AI worker claim recovery uses worker_started_at + AI_WORKER_LEASE_SECONDS.
 ```
 
 Invariant nomor 8 harus divalidasi di application layer karena FK standar tidak dapat memastikan cross-column same-case relationship secara langsung.
@@ -2269,17 +2278,16 @@ Demo case:
 
 ```text
 Operations User
-  └── MAKER
-  └── EXECUTER
+  └── MAKER / OWNER
 
 Risk User
   └── CHECKER
 
-Development User
-  └── CHECKER
-
 Manager User
   └── SIGNER
+
+Development User
+  └── EXECUTER
 ```
 
 Demo workflow menghasilkan:
