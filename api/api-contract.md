@@ -34,6 +34,35 @@ Jika token tidak valid:
 
 ---
 
+## Authorization Model
+
+System role:
+
+```text
+USER
+ADMIN
+```
+
+System role is stored on the internal user and is separate from case workflow roles.
+
+Authorization matrix:
+
+| Capability | USER | ADMIN |
+|---|---|---|
+| Read units / case types / safe user directory | Yes | Yes |
+| Create/update units | No | Yes |
+| Create/update users | No | Yes |
+| Create case types | No | Yes |
+| Create/version/activate policies | No | Yes |
+| Create case | Yes | Yes |
+| Read case | If participant | Yes |
+| Case workflow action | Only assigned case role | Only assigned case role |
+| Override SoD / workflow state | No | No |
+
+`ADMIN` alone never grants Maker/Checker/Signer/Executer authority.
+
+---
+
 # 2. Standard Response
 
 ## Success
@@ -96,6 +125,13 @@ HIGH
 CRITICAL
 ```
 
+## System Role
+
+```text
+USER
+ADMIN
+```
+
 ## Participant Role
 
 ```text
@@ -104,6 +140,8 @@ CHECKER
 SIGNER
 EXECUTER
 ```
+
+One active user may hold only one participant role on a case.
 
 ## Decision
 
@@ -194,7 +232,7 @@ Response:
     "id": "uuid",
     "name": "Operations User",
     "email": "ops.user@example.com",
-    "is_admin": false,
+    "system_role": "USER",
     "unit": {
       "id": "uuid",
       "code": "OPS",
@@ -227,6 +265,8 @@ Response:
 
 ## POST `/units`
 
+Authorization: `ADMIN` only.
+
 Request:
 
 ```json
@@ -256,6 +296,10 @@ Response:
 
 ## GET `/users`
 
+Available to any authenticated ACTIVE user because Maker needs a participant directory.
+
+The list response intentionally does **not** expose `firebase_uid`.
+
 Query parameters:
 
 ```text
@@ -272,11 +316,10 @@ Response:
   "data": [
     {
       "id": "uuid",
-      "firebase_uid": "firebase-uid",
       "name": "Risk User",
       "email": "risk.user@example.com",
       "status": "ACTIVE",
-      "is_admin": false,
+      "system_role": "USER",
       "unit": {
         "id": "uuid",
         "code": "RISK",
@@ -294,6 +337,8 @@ Response:
 
 ## POST `/users`
 
+Authorization: `ADMIN` only.
+
 Request:
 
 ```json
@@ -303,11 +348,13 @@ Request:
   "email": "risk.user@example.com",
   "unit_id": "uuid",
   "status": "ACTIVE",
-  "is_admin": false
+  "system_role": "USER"
 }
 ```
 
 ## PATCH `/users/{user_id}`
+
+Authorization: `ADMIN` only.
 
 Request:
 
@@ -343,6 +390,8 @@ Response:
 
 ## POST `/case-types`
 
+Authorization: `ADMIN` only.
+
 Request:
 
 ```json
@@ -361,7 +410,15 @@ Request:
 
 Create draft case.
 
-The authenticated creator is automatically assigned as the case's single active `MAKER`. Maker assignment cannot be replaced or unassigned.
+The authenticated creator is automatically assigned as the case's single active `MAKER` and becomes the immutable `owner`.
+
+```text
+created_by = authenticated user
+owner_id   = authenticated user
+MAKER      = authenticated user
+```
+
+Maker/owner cannot be replaced in MVP.
 
 Request:
 
@@ -432,6 +489,8 @@ Response:
 ---
 
 ## GET `/cases/{case_id}`
+
+Authorization: active case participant or `ADMIN`. ADMIN read access does not grant workflow mutation authority.
 
 Response:
 
@@ -594,12 +653,17 @@ Behavior:
 ```text
 validate active participant
 → validate non-terminal state
+→ lock case
+→ ensure no ai_analyses.status = GENERATING
+→ ensure no executions.status = IN_PROGRESS
 → persist closed_by / close_reason / closed_at
 → audit CASE_CLOSED with actor role and previous status
 → CLOSED
 ```
 
-Once the case is `CLOSED`, asynchronous AI completion or later workflow actions must not transition it out of `CLOSED`.
+If analysis generation or execution is still active, close returns `409 INVALID_STATE_TRANSITION`; the client must wait for the process to reach a terminal state.
+
+Once the case is `CLOSED`, no later workflow action may transition it out of `CLOSED`.
 
 ---
 
@@ -608,6 +672,8 @@ Once the case is `CLOSED`, asynchronous AI completion or later workflow actions 
 Participant mutation is valid **only while the case is `DRAFT`**.
 
 Maker is created automatically with the case and cannot be assigned, unassigned, or replaced through the participant API.
+
+Strict SoD: Maker, every Checker, Signer, and Executer are distinct users. A user with an existing ACTIVE participant role cannot be assigned another ACTIVE role on the same case.
 
 Cardinality at submit:
 
@@ -755,7 +821,7 @@ Request:
 {
   "actor_role": "CHECKER",
   "file_name": "settlement-log.pdf",
-  "content_type": "application/pdf"
+  "mime_type": "application/pdf"
 }
 ```
 
@@ -787,7 +853,17 @@ Request:
 
 The same evidence state/role authorization applies to both signed-URL issuance and final file-evidence registration. Backend revalidates authorization at registration time because case state may have changed after the upload URL was issued.
 
-At registration, backend also validates that `file_key` belongs to the requested case evidence prefix and that the uploaded GCS object exists. Client cannot register an arbitrary object path as case evidence.
+MVP file MIME allowlist:
+
+```text
+application/pdf
+image/jpeg
+image/png
+```
+
+Backend also validates that `file_key` belongs to the requested case evidence prefix, the GCS object exists, and the stored object MIME matches the allowed type. Client cannot register an arbitrary object path as case evidence.
+
+Registered file evidence stores `mime_type` and can be passed directly from its GCS URI to Gemini during analysis.
 
 ---
 
@@ -1306,6 +1382,8 @@ Response:
 
 ## POST `/policies`
 
+Authorization: `ADMIN` only.
+
 Request:
 
 ```json
@@ -1324,6 +1402,8 @@ Request:
 
 ## POST `/policies/{policy_id}/versions`
 
+Authorization: `ADMIN` only.
+
 Request:
 
 ```json
@@ -1333,6 +1413,13 @@ Request:
   "effective_from": "2026-10-01T00:00:00Z",
   "effective_until": null
 }
+```
+
+Validation:
+
+```text
+if effective_from and effective_until are both set:
+effective_until > effective_from
 ```
 
 Response:
@@ -1363,6 +1450,8 @@ Response:
     "status": "ACTIVE",
     "index_status": "READY",
     "index_error": null,
+    "index_attempt_id": "uuid",
+    "index_started_at": "2026-10-01T09:13:00Z",
     "indexed_at": "2026-10-01T09:14:00Z",
     "content": "Policy content...",
     "effective_from": "2026-10-01T00:00:00Z",
@@ -1376,6 +1465,8 @@ Response:
 ---
 
 ## POST `/policies/{policy_id}/versions/{version_id}/activate`
+
+Authorization: `ADMIN` only.
 
 Request:
 
@@ -1397,11 +1488,21 @@ Successful response:
 }
 ```
 
-Behavior:
+Preconditions:
 
 ```text
-validate target DRAFT
-↓
+target.status = DRAFT
+effective_from IS NULL OR effective_from <= now()
+effective_until IS NULL OR effective_until > now()
+```
+
+Future-effective and expired versions cannot be activated in MVP. There is no scheduled activation.
+
+Behavior when indexing is required:
+
+```text
+claim index_attempt_id
+set index_started_at = now()
 target.index_status = PROCESSING
 ↓ COMMIT
 
@@ -1409,12 +1510,14 @@ chunk target content
 ↓
 generate all embeddings
 ↓
-persist complete embedded chunks
+finalize only if index_attempt_id still matches
 ↓
 target.index_status = READY
 
 ↓
 atomic activation transaction
+↓
+revalidate target DRAFT + READY + effective NOW
 ↓
 current ACTIVE → SUPERSEDED
 target DRAFT → ACTIVE
@@ -1422,7 +1525,19 @@ target DRAFT → ACTIVE
 audit policy lifecycle
 ```
 
-If indexing fails:
+PROCESSING recovery:
+
+```text
+lease age <= POLICY_INDEX_LEASE_SECONDS
+→ 409 INVALID_STATE_TRANSITION (indexing still in progress)
+
+lease age > POLICY_INDEX_LEASE_SECONDS
+→ claim a new index_attempt_id
+→ retry indexing
+→ old attempt cannot finalize because its token no longer matches
+```
+
+If the current attempt fails:
 
 ```text
 target.status       = DRAFT
@@ -1432,7 +1547,7 @@ target.index_error  = safe diagnostic summary
 current ACTIVE version remains unchanged
 ```
 
-Indexing/Vertex calls do not run inside an open activation transaction.
+Indexing/Vertex calls do not run inside an open database transaction.
 
 Only `ACTIVE + READY + effective` policy versions are eligible for retrieval.
 
@@ -1553,8 +1668,6 @@ Response:
 | STALE_ANALYSIS | 409 |
 | POLICY_CONFLICT | 409 |
 | POLICY_INDEXING_FAILED | 502 |
-| AI_OUTPUT_INVALID | 502 |
-| AI_ANALYSIS_FAILED | 502 |
 | INTERNAL_ERROR | 500 |
 
 ---
@@ -1630,7 +1743,11 @@ close
 ```text
 DRAFT
 → AI_ANALYSIS
++ analysis GENERATING
++ transactional outbox AI_ANALYSIS_REQUESTED
 ```
+
+The API returns after the database transaction commits; Gemini runs asynchronously through RabbitMQ.
 
 ## Analysis Success
 
