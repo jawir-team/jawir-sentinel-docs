@@ -419,6 +419,15 @@ CLOSED requires:
 - closed_at
 
 DONE does not require close fields.
+
+current_analysis_id semantics:
+- points only to the latest COMPLETED analysis with verification PASS/PASS_WITH_WARNING
+  that became eligible for human review;
+- never points to GENERATING or FAILED analysis;
+- may remain on an older successful analysis when a newer attempt fails;
+- may be NULL when no analysis has completed successfully.
+
+Latest analysis attempt is derived from MAX(ai_analyses.version) for the case.
 ```
 
 ---
@@ -1388,6 +1397,9 @@ Application invariants:
 - jika `policy_version_id` tidak NULL, version harus belong ke `policy_id`;
 - jangan membuat fake `case_id` untuk policy event;
 - `is_admin` adalah authorization attribute, bukan workflow `actor_role`;
+- `AI_ANALYSIS_FAILED.metadata.failure_type` is one of `VERIFIER_FAIL` or `TECHNICAL_RETRY_EXHAUSTED`;
+- `REANALYSIS_LIMIT_REACHED.metadata` stores at least `latest_analysis_version` and `max_reanalysis`;
+- escalation cause uses audit metadata; no additional case escalation-reason column is required for MVP;
 - audit event tidak memiliki `updated_at`;
 - application API tidak menyediakan update/delete audit event.
 
@@ -2084,6 +2096,8 @@ Invariant berikut harus selalu benar:
 21. COMPLETED analysis contains complete schema-valid output and PASS/PASS_WITH_WARNING verification.
 22. NULL analysis result fields mean not produced; empty JSON collections mean valid empty output.
 23. Invalid/unvalidated AI output is never stored as structured analysis data.
+24. current_analysis_id never points to FAILED/GENERATING analysis.
+25. AI terminal escalation cause is preserved in audit metadata; no duplicate case escalation column is required.
 ```
 
 Invariant nomor 8 harus divalidasi di application layer karena FK standar tidak dapat memastikan cross-column same-case relationship secara langsung.
