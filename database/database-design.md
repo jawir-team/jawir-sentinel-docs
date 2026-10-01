@@ -853,23 +853,23 @@ status                VARCHAR(20)   NOT NULL
 
 summary               TEXT          NULL
 
-facts                 JSONB         NOT NULL DEFAULT '[]'
-assumptions           JSONB         NOT NULL DEFAULT '[]'
-unknowns              JSONB         NOT NULL DEFAULT '[]'
+facts                 JSONB         NULL
+assumptions           JSONB         NULL
+unknowns              JSONB         NULL
 
-risk_analysis         JSONB         NOT NULL DEFAULT '[]'
-compliance_analysis   JSONB         NOT NULL DEFAULT '{}'
+risk_analysis         JSONB         NULL
+compliance_analysis   JSONB         NULL
 
-recommendation        JSONB         NOT NULL DEFAULT '{}'
-alternatives          JSONB         NOT NULL DEFAULT '[]'
-missing_information   JSONB         NOT NULL DEFAULT '[]'
+recommendation        JSONB         NULL
+alternatives          JSONB         NULL
+missing_information   JSONB         NULL
 
-policy_status         VARCHAR(40)   NOT NULL
-evidence_quality      VARCHAR(20)   NOT NULL
-uncertainty           VARCHAR(20)   NOT NULL
+policy_status         VARCHAR(40)   NULL
+evidence_quality      VARCHAR(20)   NULL
+uncertainty           VARCHAR(20)   NULL
 
-verification_status   VARCHAR(30)   NOT NULL
-verification_notes    JSONB         NOT NULL DEFAULT '[]'
+verification_status   VARCHAR(30)   NULL
+verification_notes    JSONB         NULL
 
 model_name            VARCHAR(100)  NOT NULL
 prompt_version        VARCHAR(50)   NOT NULL
@@ -948,6 +948,62 @@ Analysis version starts from 1.
 Version increases monotonically per case.
 Historical analysis is never overwritten.
 ```
+
+Result-field semantics:
+
+```text
+NULL
+= value has not been produced by a valid analysis/verifier stage
+
+[]
+= valid model output exists and the list is intentionally empty
+
+{}
+= valid model output exists and the object is intentionally empty where the schema allows it
+```
+
+Lifecycle rules:
+
+```text
+GENERATING
+→ result fields are NULL
+
+COMPLETED
+→ structured analysis fields are present
+→ verification_status = PASS | PASS_WITH_WARNING
+
+FAILED before valid structured analysis
+→ structured result fields remain NULL
+→ verification_status may be NULL
+
+FAILED after valid analysis but verifier FAIL
+→ valid structured analysis fields are preserved
+→ verification_status = FAIL
+→ verification_notes contains verifier issues
+```
+
+Invalid/unvalidated model output must not be copied into structured analysis columns.
+
+Application/service must enforce that `COMPLETED` contains all fields required by the analysis contract:
+
+```text
+summary
+facts
+assumptions
+unknowns
+risk_analysis
+compliance_analysis
+recommendation
+alternatives
+missing_information
+policy_status
+evidence_quality
+uncertainty
+verification_status
+verification_notes
+```
+
+For a valid completed analysis, empty arrays/objects remain valid values and are distinct from NULL.
 
 ---
 
@@ -2025,6 +2081,9 @@ Invariant berikut harus selalu benar:
 18. audit scope invariants are valid; policy events never use fake case_id.
 19. historical analysis is never overwritten.
 20. historical policy references remain stable.
+21. COMPLETED analysis contains complete schema-valid output and PASS/PASS_WITH_WARNING verification.
+22. NULL analysis result fields mean not produced; empty JSON collections mean valid empty output.
+23. Invalid/unvalidated AI output is never stored as structured analysis data.
 ```
 
 Invariant nomor 8 harus divalidasi di application layer karena FK standar tidak dapat memastikan cross-column same-case relationship secara langsung.
