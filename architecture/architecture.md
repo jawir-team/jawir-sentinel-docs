@@ -64,84 +64,110 @@ Backend API
     │
     ├── PostgreSQL / Cloud SQL
     ├── Google Cloud Storage
-    ├── Vertex AI Gemini
-    └── Firebase Authentication
+    ├── Firebase Authentication
+    └── Transactional Outbox
+             │
+             ▼
+          RabbitMQ
+             │
+             ▼
+      Sentinel AI Worker
+             │
+             └── Vertex AI Gemini
 ```
 
-External managed services:
+Runtime/external services:
 
 ```text
 Firebase Authentication
-Google Cloud Run
+Google Cloud Run Service      → sentinel-api
+Google Cloud Run Worker Pool  → sentinel-worker
 Google Cloud SQL
 Google Cloud Storage
 Vertex AI
+RabbitMQ broker
 ```
+
+PostgreSQL remains workflow truth. RabbitMQ transports work; it never becomes workflow authority.
 
 ---
 
 # 3. High-Level Architecture
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│                        HUMAN USERS                          │
-│                                                             │
-│ Maker       Checker       Signer       Executer      Admin  │
-└──────────────────────────────┬──────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│ HUMAN USERS                                                  │
+│ Maker       Checker       Signer       Executer       Admin  │
+└──────────────────────────────┬───────────────────────────────┘
                                │
                                ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  JAWIR SENTINEL FRONTEND                    │
-│                                                             │
-│ Next.js + TypeScript                                        │
-│ Cloud Run                                                   │
-│                                                             │
-│ - Authentication UI                                         │
-│ - Dashboard                                                 │
-│ - Case UI                                                   │
-│ - AI Analysis UI                                            │
-│ - Review UI                                                 │
-│ - Execution UI                                              │
-│ - Policy Management UI                                      │
-│ - Audit Timeline                                            │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ HTTPS / JSON
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   JAWIR SENTINEL BACKEND                    │
-│                                                             │
-│ Go + Chi                                                    │
-│ Cloud Run                                                   │
-│                                                             │
-│ ┌─────────────────────────────────────────────────────────┐ │
-│ │ API / Auth Middleware                                   │ │
-│ └──────────────────────────┬──────────────────────────────┘ │
-│                            │                                │
-│ ┌──────────────────────────▼──────────────────────────────┐ │
-│ │ Application / Domain Services                          │ │
-│ │                                                       │ │
-│ │ Case        Workflow        Review       Execution     │ │
-│ │ Policy      Evidence        Audit        User/Unit     │ │
-│ └──────────────────────────┬──────────────────────────────┘ │
-│                            │                                │
-│ ┌──────────────────────────▼──────────────────────────────┐ │
-│ │ AI Orchestration                                       │ │
-│ │                                                       │ │
-│ │ Context Builder                                       │ │
-│ │ Policy Retrieval                                      │ │
-│ │ Gemini Analysis                                       │ │
-│ │ Structured Validation                                 │ │
-│ │ Gemini Verification                                   │ │
-│ └──────────────────────────┬──────────────────────────────┘ │
-└───────────────┬────────────┼───────────────┬────────────────┘
-                │            │               │
-                ▼            ▼               ▼
-      ┌────────────────┐ ┌──────────────┐ ┌──────────────────┐
-      │ Cloud SQL      │ │ Cloud Storage│ │ Vertex AI Gemini │
-      │ PostgreSQL     │ │ Evidence     │ │ Analysis         │
-      │ + pgvector     │ │ Files        │ │ Verification     │
-      └────────────────┘ └──────────────┘ └──────────────────┘
+                    ┌────────────────────┐
+                    │ sentinel-web       │
+                    │ Next.js / Cloud Run│
+                    └─────────┬──────────┘
+                              │ HTTPS
+                              ▼
+                    ┌────────────────────┐
+                    │ sentinel-api       │
+                    │ Go / Cloud Run     │
+                    │                    │
+                    │ Workflow authority │
+                    │ DB transactions    │
+                    │ Outbox writer      │
+                    └───┬────────────┬───┘
+                        │            │
+                        ▼            ▼
+              ┌────────────────┐  ┌────────────────┐
+              │ Cloud SQL      │  │ Cloud Storage  │
+              │ PostgreSQL     │  │ Evidence Files │
+              │ + pgvector     │  └────────────────┘
+              └───────┬────────┘
+                      │
+             outbox_events (durable)
+                      │
+                      ▼
+             ┌──────────────────┐
+             │ sentinel-worker  │
+             │ Worker Pool      │
+             │ Outbox Dispatcher│
+             │ Rabbit Consumer  │
+             └────┬────────┬────┘
+                  │        │
+           publish│        │consume
+                  ▼        │
+             ┌──────────┐  │
+             │ RabbitMQ │◄─┘
+             │ quorum   │
+             │ queue    │
+             └────┬─────┘
+                  │
+                  ▼
+             AI job consumer
+                  │
+                  ├── Context Builder
+                  ├── Policy Retrieval
+                  ├── Gemini Analysis
+                  ├── Structured Validation
+                  └── Gemini Verification
+                  │
+                  ▼
+             Vertex AI Gemini
 ```
+
+Reliability boundary:
+
+```text
+business transaction
+→ workflow mutation + GENERATING analysis + audit + outbox row
+→ COMMIT
+→ dispatcher publishes with publisher confirms
+→ RabbitMQ durable quorum queue
+→ worker consumes with manual acknowledgement
+→ finalization transaction
+→ ACK only after durable finalization
+```
+
+Rabbit delivery is at-least-once. Consumer/finalization logic must therefore be idempotent.
 
 ---
 
@@ -187,35 +213,45 @@ Docs repository menjadi single source of truth untuk contract lintas repository.
 # 5. Deployment Architecture
 
 ```text
-                    Internet
-                       │
-                       ▼
-              ┌────────────────┐
-              │ sentinel-web   │
-              │ Cloud Run      │
-              └───────┬────────┘
-                      │ HTTPS
-                      ▼
-              ┌────────────────┐
-              │ sentinel-api   │
-              │ Cloud Run      │
-              └───┬─────┬──────┘
-                  │     │
-          ┌───────┘     └──────────────┐
-          ▼                            ▼
-┌──────────────────┐        ┌────────────────────┐
-│ Cloud SQL        │        │ Vertex AI Gemini   │
-│ PostgreSQL       │        │ + Embedding Model  │
-│ pgvector         │        └────────────────────┘
-└────────┬─────────┘
-         │
-         │
-         ▼
-┌──────────────────┐
-│ Cloud Storage    │
-│ Evidence Files   │
-└──────────────────┘
+Internet
+   │
+   ▼
+sentinel-web
+Cloud Run Service
+   │ HTTPS
+   ▼
+sentinel-api
+Cloud Run Service
+   │
+   ├──────────────► Cloud SQL PostgreSQL + pgvector
+   ├──────────────► Cloud Storage
+   └──────────────► Firebase token verification
+
+Cloud SQL outbox_events
+   │
+   ▼
+sentinel-worker
+Cloud Run Worker Pool
+   │
+   ├── Outbox Dispatcher ──► RabbitMQ
+   └── AI Consumer ◄──────── RabbitMQ
+                              │
+                              ▼
+                        Vertex AI Gemini
 ```
+
+The backend repository produces one container image with two runtime modes:
+
+```text
+server  → sentinel-api
+worker  → sentinel-worker
+```
+
+This is not a microservice split of business ownership. Both modes share the same domain, repository, workflow, and database contracts.
+
+RabbitMQ production topology must use durable queues and a fault-tolerant broker/cluster. The application receives broker connectivity through `RABBITMQ_URL`; broker hosting is environment-specific.
+
+Local development may run RabbitMQ through Docker Compose.
 
 Authentication:
 
@@ -293,7 +329,7 @@ UI Preference
 
 # 7. Backend Architecture
 
-Backend menggunakan modular monolith.
+Backend menggunakan satu modular-monolith codebase dengan dua runtime modes.
 
 ```text
 Go Application
@@ -310,16 +346,29 @@ Go Application
 ├── Review
 ├── Execution
 ├── Audit
+├── Outbox
+├── Messaging
 └── AI
 ```
 
-MVP hanya memiliki satu backend deployable service:
+Deployables:
 
 ```text
 sentinel-api
+→ HTTP/API
+→ workflow/business transactions
+→ writes outbox_events
+→ never performs long AI calls in request transaction
+
+sentinel-worker
+→ continuous background runtime
+→ dispatches outbox to RabbitMQ
+→ consumes AI jobs
+→ calls Vertex AI
+→ finalizes analysis
 ```
 
-Tidak ada microservice split pada MVP.
+Business authority remains in shared application/domain services and PostgreSQL.
 
 ---
 
@@ -529,15 +578,59 @@ Backend authorization tidak bergantung pada frontend state.
 
 # 12. Authorization Architecture
 
-Authorization rule menggunakan:
+Sentinel separates **system role** from **case workflow role**.
+
+System role:
+
+```text
+USER
+ADMIN
+```
+
+Case role:
+
+```text
+MAKER
+CHECKER
+SIGNER
+EXECUTER
+```
+
+`ADMIN` is not a case-participant role and does not bypass workflow SoD.
+
+Authorization matrix:
+
+```text
+Read units / case types / safe user directory
+→ any authenticated ACTIVE user
+
+Create/update units, users, case types
+→ ADMIN
+
+Create/version/activate policy
+→ ADMIN
+
+Create case
+→ any authenticated ACTIVE user
+→ creator becomes Maker + owner
+
+Read a case
+→ active case participant OR ADMIN
+
+Mutate case workflow
+→ exact assigned case role + state/analysis guards
+→ ADMIN alone gives no workflow authority
+```
+
+Backend authorization evaluates:
 
 ```text
 Authenticated User
+users.system_role
 Case Participant Assignment
 Participant Role
 Current Case State
 Current Analysis Version
-is_admin
 Segregation of Duties
 ```
 
@@ -546,7 +639,7 @@ Example:
 ```text
 Checker Approve Request
 ↓
-authenticated?
+authenticated ACTIVE user?
 ↓
 assigned CHECKER?
 ↓
@@ -590,6 +683,7 @@ Historical Decision Data
 AI Structured Data
 Vector Retrieval Data
 Audit Data
+Operational Outbox Data
 ```
 
 ---
@@ -643,11 +737,12 @@ Historical data tidak di-overwrite untuk menggantikan decision context lama.
 
 # 16. AI Architecture
 
-AI subsystem:
+AI subsystem dijalankan oleh `sentinel-worker`.
 
 ```text
-AI Orchestrator
+RabbitMQ Consumer
 │
+├── Analysis Job Guard
 ├── Context Builder
 ├── Policy Retriever
 ├── Analysis Generator
@@ -673,36 +768,58 @@ distance               = cosine
 index                   = HNSW
 ```
 
-Embedding contract:
+Queue correctness:
 
-- policy chunks selalu di-embed dengan `RETRIEVAL_DOCUMENT`;
-- retrieval query selalu di-embed dengan `RETRIEVAL_QUERY`;
-- `SEMANTIC_SIMILARITY` tidak digunakan untuk policy retrieval;
-- output vector disimpan sebagai PostgreSQL `VECTOR(768)`;
-- HNSW menggunakan `vector_cosine_ops`;
-- default HNSW parameters dipakai pada MVP;
-- `POLICY_RETRIEVAL_TOP_K=8`;
-- model/dimension/task type dianggap bagian dari retrieval contract dan perubahan di kemudian hari membutuhkan re-embedding seluruh derived policy chunks.
+- message identity is the persisted `outbox_events.id`;
+- payload contains exact `case_id` and `analysis_id`;
+- duplicate/redelivered messages are allowed;
+- worker checks persisted analysis status before work;
+- finalization row-lock/state guards ensure at most one durable outcome;
+- a duplicate consumer that finds analysis already COMPLETED/FAILED acknowledges and performs no state mutation.
+
+Embedding contract remains independent from RabbitMQ transport.
 
 ---
 
 # 17. AI Context Builder
 
-Context Builder mengumpulkan:
+Context Builder creates the exact decision context for one persisted analysis version.
+
+Inputs:
 
 ```text
-Current Case
+Current Case Snapshot
 Current Evidence
-Current Workflow State
-Current ACTIVE + READY Policy
+Current ACTIVE + READY Policy Chunks
 Latest Reviewer Feedback
 Latest Execution Feedback
 Previous Analysis Summary
+Current Workflow State
 ```
 
-Context tidak mengambil seluruh data repository.
+Evidence handling:
 
-Hanya context relevan yang dikirim ke model.
+```text
+text evidence
+→ prompt text/data part
+
+supported file evidence
+→ Gemini fileData using GCS URI + MIME type
+```
+
+MVP multimodal allowlist:
+
+```text
+application/pdf
+image/jpeg
+image/png
+```
+
+No custom OCR/extraction pipeline is required for those supported evidence files. Unsupported MIME types are rejected by the file-evidence flow rather than silently omitted from AI context.
+
+All evidence/file content is untrusted **data**, never system instruction.
+
+Context Builder preserves provenance IDs so generated facts/recommendations can reference exact policy/evidence sources.
 
 ---
 
@@ -804,7 +921,13 @@ index_status = NOT_STARTED
   ↓
 Activation Requested
   ↓
+validate target effective NOW
+validate effective_until > effective_from when both exist
+  ↓
+claim index attempt
 index_status = PROCESSING
+index_attempt_id = new UUID
+index_started_at = now()
   ↓
 Normalize Content
   ↓
@@ -828,15 +951,36 @@ target DRAFT → ACTIVE
 Ready for Retrieval
 ```
 
-If chunking or embedding fails:
+If chunking or embedding fails for the currently claimed attempt:
 
 ```text
 target.status       = DRAFT
 target.index_status = FAILED
 target.index_error  = safe diagnostic summary
+target.indexed_at   = NULL
 
 current ACTIVE version remains ACTIVE
 ```
+
+PROCESSING recovery:
+
+```text
+POLICY_INDEX_LEASE_SECONDS controls stale threshold.
+
+PROCESSING + lease not stale
+→ reject duplicate activation
+
+PROCESSING + lease stale
+→ claim a new index_attempt_id
+→ old attempt loses write authority
+→ re-index
+```
+
+Every READY/FAILED write must compare the expected `index_attempt_id`. A late worker from an older attempt cannot overwrite a newer claim.
+
+Final activation re-validates that the target is still `DRAFT + READY` and effective **at transaction time** before superseding the old ACTIVE version.
+
+Future-effective or expired versions cannot be activated in MVP. There is no scheduled activation service.
 
 External embedding requests are never executed inside the final policy activation transaction.
 
@@ -887,92 +1031,89 @@ Historical analysis tetap reference ke version lama yang digunakan saat decision
 
 # 20. AI Analysis Flow
 
+Queueing phase:
+
 ```text
-Case enters AI_ANALYSIS
-        │
-        ▼
-Create analysis execution context
-        │
-        ▼
-Retrieve evidence
-        │
-        ▼
-Retrieve active policy chunks
-        │
-        ▼
-Build prompt/context
-        │
-        ▼
+business transaction
+↓
+case → AI_ANALYSIS
+↓
+allocate ai_analyses row = GENERATING
+↓
+audit AI_ANALYSIS_STARTED
+↓
+insert outbox_events.AI_ANALYSIS_REQUESTED
+↓
+COMMIT
+```
+
+Delivery phase:
+
+```text
+Outbox Dispatcher
+↓ publisher confirm
+RabbitMQ quorum queue
+↓ manual delivery
+sentinel-worker
+```
+
+Worker phase:
+
+```text
+Load analysis by analysis_id
+↓
+if status != GENERATING → ACK / no-op
+↓
+Build current context
+↓
+Retrieve ACTIVE + READY policy chunks
+↓
+Attach supported GCS evidence files directly to Gemini
+↓
 Gemini Analysis
-        │
-        ▼
+↓
 Validate structured JSON
-        │
-        ▼
+↓
 Gemini Verifier
-        │
-        ├── PASS
-        ├── PASS_WITH_WARNING
-        └── FAIL
 ```
 
-If:
+PASS / PASS_WITH_WARNING:
 
 ```text
-PASS
-PASS_WITH_WARNING
+finalization transaction
+→ persist complete analysis + provenance
+→ update current_analysis_id
+→ ANALYSIS_SUCCESS
+→ CHECKING
+→ COMMIT
+→ RabbitMQ ACK
 ```
 
-then:
+Verifier FAIL:
 
 ```text
-Persist complete schema-valid Analysis
-Persist Policy References
-Persist Evidence References
-Update current_analysis_id
-Transition → CHECKING
+finalization transaction
+→ persist FAILED analysis + valid candidate + provenance
+→ audit AI_ANALYSIS_FAILED / VERIFIER_FAIL
+→ ANALYSIS_FAILED
+→ ESCALATION_REQUIRED
+→ COMMIT
+→ RabbitMQ ACK
 ```
 
-If verifier returns:
+Technical retry exhaustion:
 
 ```text
-FAIL
+finalization transaction
+→ analysis FAILED
+→ audit AI_ANALYSIS_FAILED / TECHNICAL_RETRY_EXHAUSTED
+→ ANALYSIS_FAILED
+→ ESCALATION_REQUIRED
+→ COMMIT
+→ RabbitMQ ACK
 ```
 
-then:
-
-```text
-Persist analysis status = FAILED
-Preserve schema-valid analysis output that was actually produced
-Persist exact policy/evidence references used by that valid candidate
-Persist verification_status = FAIL
-Persist verification_notes
-Do not update current_analysis_id
-Audit AI_ANALYSIS_FAILED with failure_type = VERIFIER_FAIL
-Apply ANALYSIS_FAILED
-Transition AI_ANALYSIS → ESCALATION_REQUIRED
-```
-
-If technical retry is exhausted before usable analysis exists:
-
-```text
-Persist analysis status = FAILED
-Leave unavailable result fields NULL
-Do not fabricate policy_status / quality / uncertainty / verification result
-Do not update current_analysis_id
-Audit AI_ANALYSIS_FAILED with failure_type = TECHNICAL_RETRY_EXHAUSTED
-Apply ANALYSIS_FAILED
-Transition AI_ANALYSIS → ESCALATION_REQUIRED
-```
-
-Persistence meaning:
-
-```text
-NULL = not produced
-[] / {} = valid produced output that is empty
-```
-
-Raw malformed or unvalidated model output is never promoted into structured analysis fields.
+If finalization fails before commit, the worker does not ACK; RabbitMQ may redeliver. State/finalization must therefore be idempotent.
 
 ---
 
@@ -1145,93 +1286,92 @@ Require Human Re-review
 
 # 25. Transaction Architecture
 
-Critical mutation dilakukan dalam short-lived transaction.
+Critical workflow mutation and AI job creation are atomic through the transactional outbox.
 
-A governed action that requests re-analysis must persist the business action even when the re-analysis quota is exhausted.
-
-Example Checker Reject:
+Initial submit example:
 
 ```text
 BEGIN
 
 Lock Case
-Validate State
-Validate Actor
-Validate Analysis
-Insert REJECT Decision
-Insert Feedback Evidence
-Audit CHECKER_REJECTED
-Apply CHECKER_REJECTED → AI_ANALYSIS
-
-Check MAX_REANALYSIS
-
-if quota available:
-  final state = AI_ANALYSIS
-
-if quota exhausted:
-  Audit REANALYSIS_LIMIT_REACHED
-  Apply REANALYSIS_LIMIT_REACHED → ESCALATION_REQUIRED
+Validate DRAFT + participants + SoD
+Freeze governance context
+DRAFT → SUBMITTED → AI_ANALYSIS
+Create Analysis v1 = GENERATING
+Audit CASE_SUBMITTED
+Audit AI_ANALYSIS_STARTED
+Insert outbox AI_ANALYSIS_REQUESTED(case_id, analysis_id)
 
 COMMIT
 ```
 
-After commit:
+Governed re-analysis example:
 
 ```text
-if final state = AI_ANALYSIS
-→ Trigger AI Re-analysis
+BEGIN
 
-if final state = ESCALATION_REQUIRED
-→ Do not call AI
+Lock Case
+Persist reject/block/fail business record
+Apply business event → AI_ANALYSIS
+Check MAX_REANALYSIS
+
+if quota available:
+  allocate next GENERATING analysis
+  audit AI_ANALYSIS_STARTED
+  insert outbox AI_ANALYSIS_REQUESTED
+
+if quota exhausted:
+  audit REANALYSIS_LIMIT_REACHED
+  AI_ANALYSIS → ESCALATION_REQUIRED
+  no analysis row
+  no outbox row
+
+COMMIT
 ```
 
-The same pattern applies to Signer Reject and Execution BLOCKED/FAILED.
+No HTTP request performs Vertex calls after the transaction. Durable outbox guarantees the intent survives API/process failure.
 
-Quota exhaustion is a successful governed business outcome, not a rolled-back HTTP conflict.
-
-External AI call tidak dijalankan dalam open DB transaction.
+Outbox delivery is at-least-once. Duplicate RabbitMQ deliveries are safe because worker finalization validates exact `analysis_id`, row-locks the case, and only finalizes a GENERATING analysis once.
 
 ---
 
 # 26. File Storage Architecture
 
-Evidence binary:
+Evidence file flow:
 
 ```text
-Google Cloud Storage
+Client
+  ↓
+Request signed upload URL
+  ↓
+Backend validates actor/state/MIME
+  ↓
+Backend returns signed URL + case-scoped file key
+  ↓
+Client uploads directly to Cloud Storage
+  ↓
+Client registers evidence
+  ↓
+Backend revalidates state/actor
+  ↓
+Backend verifies object exists + case prefix + MIME
+  ↓
+Persist evidence metadata
 ```
 
-Metadata:
+MVP file MIME allowlist:
 
 ```text
-PostgreSQL
+application/pdf
+image/jpeg
+image/png
 ```
 
-Upload flow:
+Stored evidence includes `mime_type`.
 
-```text
-Frontend
-  ↓
-Request Signed URL
-  ↓
-Backend
-  ↓
-Generate Signed Upload URL
-  ↓
-Frontend
-  ↓
-Direct Upload to Cloud Storage
-  ↓
-Frontend
-  ↓
-Register Evidence Metadata
-  ↓
-Backend
-  ↓
-PostgreSQL
-```
+During AI context construction, backend converts the case-scoped GCS object to a `gs://...` URI and supplies it to Gemini as file data. The main API never proxies the binary and no custom OCR pipeline is required for this allowlist.
 
-Backend tidak menjadi proxy untuk large binary upload.
+Unsupported MIME types are rejected rather than stored as AI-invisible evidence.
 
 ---
 
@@ -1449,15 +1589,44 @@ Frontend menginterpretasikan `error.code`.
 MVP reliability principles:
 
 ```text
-DB commit before external AI call
-Short-lived transactions
-Retry external AI selectively
-Persist AI failure state
-Do not lose case on AI failure
+PostgreSQL is workflow truth
+Business state + AI enqueue intent commit atomically
+RabbitMQ delivery is at-least-once
+Consumer/finalization is idempotent
+External AI calls never run in open DB transactions
+Retry technical AI failures selectively
+Preserve audit/history
 Bound technical retry loop
 Bound business re-analysis loop
-Preserve audit trail
 ```
+
+Transactional outbox:
+
+```text
+API transaction
+→ outbox_events.status = PENDING
+→ COMMIT
+
+sentinel-worker dispatcher
+→ publish persistent message
+→ wait for RabbitMQ publisher confirm
+→ mark outbox PUBLISHED
+```
+
+If dispatcher crashes before publish, PENDING remains retryable.
+If publish succeeds but process fails before PUBLISHED update, duplicate publish is acceptable; the consumer is state-idempotent.
+
+RabbitMQ contract:
+
+```text
+durable quorum queue
+persistent messages
+publisher confirms
+manual consumer acknowledgements
+message_id = outbox_event.id
+```
+
+Consumer ACK only after the finalization transaction commits. A connection/process failure before ACK may cause redelivery.
 
 Technical AI retry configuration:
 
@@ -1465,50 +1634,25 @@ Technical AI retry configuration:
 AI_TECHNICAL_MAX_RETRIES=<non-negative integer>
 ```
 
-The value is loaded from runtime environment into application config and is not hard-coded in orchestration logic.
-
-Semantics:
-
-```text
-total attempts = 1 initial attempt + AI_TECHNICAL_MAX_RETRIES
-```
-
-Technical retries stay inside the same business analysis version and do not consume `MAX_REANALYSIS`.
+`total attempts = 1 initial + configured retries` within the same analysis version.
 
 After retry exhaustion:
 
 ```text
-analysis → FAILED
-audit AI_ANALYSIS_FAILED
-failure_type = TECHNICAL_RETRY_EXHAUSTED
-ANALYSIS_FAILED
-case → ESCALATION_REQUIRED
+analysis FAILED
+→ AI_ANALYSIS_FAILED / TECHNICAL_RETRY_EXHAUSTED
+→ ESCALATION_REQUIRED
 ```
 
-Verifier `FAIL` is not a technical retry condition:
+Verifier FAIL is semantic, not technical retry:
 
 ```text
-verification_status = FAIL
-analysis → FAILED
-audit AI_ANALYSIS_FAILED
-failure_type = VERIFIER_FAIL
-ANALYSIS_FAILED
-case → ESCALATION_REQUIRED
+analysis FAILED
+→ AI_ANALYSIS_FAILED / VERIFIER_FAIL
+→ ESCALATION_REQUIRED
 ```
 
-Maximum re-analysis:
-
-```text
-MAX_REANALYSIS = 3
-```
-
-If a governed business trigger requests another analysis after the quota is exhausted:
-
-```text
-do not allocate a new analysis version
-audit REANALYSIS_LIMIT_REACHED
-case → ESCALATION_REQUIRED
-```
+Business re-analysis remains bounded independently by `MAX_REANALYSIS`.
 
 ---
 
@@ -1831,6 +1975,9 @@ VERTEX_EMBEDDING_MODEL
 MAX_REANALYSIS
 AI_TECHNICAL_MAX_RETRIES
 POLICY_RETRIEVAL_TOP_K
+POLICY_INDEX_LEASE_SECONDS
+RABBITMQ_URL
+RABBITMQ_AI_QUEUE
 ```
 
 Frontend env:
@@ -2096,7 +2243,16 @@ Invariant berikut harus selalu benar:
 28. current_analysis_id points only to the latest reviewable COMPLETED analysis; FAILED attempts do not replace it.
 29. AI terminal failure causes are VERIFIER_FAIL or TECHNICAL_RETRY_EXHAUSTED; quota exhaustion is REANALYSIS_LIMIT_REACHED.
 30. ESCALATION_REQUIRED has no resume path in MVP.
-31. Docs define the contract; FE and BE implement it.
+31. System role USER/ADMIN is separate from case workflow roles; ADMIN alone never grants case-action authority.
+32. Maker, Checker, Signer, and Executer must be distinct active users for a case.
+33. Case owner is the immutable Maker/creator in MVP.
+34. AI job intent is persisted through transactional outbox in the same transaction as AI_ANALYSIS/GENERATING state.
+35. RabbitMQ delivery is at-least-once; worker finalization is idempotent.
+36. Close is rejected while an analysis is GENERATING or an execution is IN_PROGRESS.
+37. Policy activation requires target READY and currently effective; future/expired versions are not activatable.
+38. Stale policy indexing attempts cannot finalize after a newer index_attempt_id is claimed.
+39. Supported PDF/JPEG/PNG evidence is passed directly from GCS to Gemini.
+40. Docs define the contract; FE and BE implement it.
 ```
 
 ---
