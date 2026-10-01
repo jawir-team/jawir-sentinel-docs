@@ -1184,19 +1184,56 @@ Keduanya harus tampil berbeda di UI dan audit history.
 
 # 28. Escalation Flow
 
-Automatic re-analysis limit:
+Automatic business re-analysis limit:
 
 ```text
 MAX_REANALYSIS = 3
 ```
 
-Jika limit tercapai:
+Semantics:
 
 ```text
+Analysis v1
+= initial analysis
+= reanalysis_count 0
+
+Analysis v2
+= re-analysis #1
+
+Analysis v3
+= re-analysis #2
+
+Analysis v4
+= re-analysis #3
+```
+
+Setelah v4 sudah ada, request business action yang membutuhkan analysis version berikutnya akan mencapai limit:
+
+```text
+Requested re-analysis #4
+↓
 Audit REANALYSIS_LIMIT_REACHED
 ↓
 case → ESCALATION_REQUIRED
 ```
+
+Formula MVP:
+
+```text
+reanalysis_count = latest_analysis_version - 1
+```
+
+Technical retry terhadap model/provider **tidak** menambah analysis version dan **tidak** menambah re-analysis count.
+
+Contoh technical retry:
+
+```text
+Vertex AI timeout
+temporary provider error
+malformed model response yang di-retry dalam analysis cycle yang sama
+```
+
+Satu business analysis cycle hanya memperoleh satu `ai_analyses.version`. Retry teknis tetap berada pada cycle/version yang sama sampai cycle berhasil atau dinyatakan FAILED.
 
 Other escalation trigger:
 
