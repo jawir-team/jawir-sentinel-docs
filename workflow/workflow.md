@@ -131,7 +131,8 @@ case → DONE
 Jika execution blocked atau failed:
 
 ```text
-case → AI_ANALYSIS
+quota available → case AI_ANALYSIS
+quota exhausted → case ESCALATION_REQUIRED
 ```
 
 ---
@@ -364,7 +365,9 @@ CHECKING → SIGNING
 Jika satu Checker reject:
 
 ```text
-CHECKING → AI_ANALYSIS
+CHECKER_REJECTED
+quota available → CHECKING → AI_ANALYSIS
+quota exhausted → CHECKING → ESCALATION_REQUIRED
 ```
 
 ---
@@ -389,7 +392,9 @@ SIGNING → EXECUTION
 Reject:
 
 ```text
-SIGNING → AI_ANALYSIS
+SIGNER_REJECTED
+quota available → SIGNING → AI_ANALYSIS
+quota exhausted → SIGNING → ESCALATION_REQUIRED
 ```
 
 ---
@@ -417,7 +422,9 @@ EXECUTION → DONE
 Blocked/Failed:
 
 ```text
-EXECUTION → AI_ANALYSIS
+EXECUTION_BLOCKED / EXECUTION_FAILED
+quota available → EXECUTION → AI_ANALYSIS
+quota exhausted → EXECUTION → ESCALATION_REQUIRED
 ```
 
 ---
@@ -1808,16 +1815,16 @@ EXECUTION
 
 # 38. Workflow Demo MVP
 
-MVP demo menggunakan flow berikut:
+Demo utama mengikuti mapping user pada README Frontend dan section Relationship Data Demo di desain database. Keempat role menggunakan user yang berbeda:
 
 ```text
 Maker creates case
 ↓
 Maker assigns:
-- Risk Checker
-- Development Checker
-- Manager Signer
-- Maker as Executer
+- Operations User → MAKER / OWNER
+- Risk User → CHECKER
+- Manager User → SIGNER
+- Development User → EXECUTER
 ↓
 Maker submits case
 ↓
@@ -1829,8 +1836,6 @@ AI Analysis v2 generated
 ↓
 Risk Checker approves
 ↓
-Development Checker approves
-↓
 Signer approves
 ↓
 Executer starts execution
@@ -1840,8 +1845,6 @@ Executer marks BLOCKED
 AI Analysis v3 generated
 ↓
 Risk Checker approves
-↓
-Development Checker approves
 ↓
 Signer approves
 ↓
@@ -1857,7 +1860,7 @@ Analysis Versioning
 Policy Grounding
 Checker Reject
 Re-analysis
-Multi-Checker Approval
+Strict Segregation of Duties
 Signer Authorization
 Execution Blocker
 Second Re-analysis
@@ -1866,6 +1869,8 @@ Audit History
 ```
 
 ---
+
+Pengujian multi-Checker tetap mengikuti section 12 (Aturan Round Checker), menggunakan user Checker tambahan yang berbeda dari Maker, Signer, Executer, dan Checker lainnya.
 
 # 39. Invariant Workflow
 
@@ -1877,8 +1882,8 @@ Invariant berikut harus selalu benar:
 3. SIGNING hanya dapat terjadi setelah semua required Checker approve.
 4. EXECUTION hanya dapat terjadi setelah Signer approve.
 5. DONE hanya dapat terjadi setelah execution SUCCESS.
-6. BLOCKED/FAILED selalu kembali ke AI_ANALYSIS.
-7. Reject selalu menghasilkan re-analysis sebelum review berikutnya.
+6. BLOCKED/FAILED kembali ke AI_ANALYSIS jika quota tersedia; jika habis, ke ESCALATION_REQUIRED tanpa analysis/outbox baru.
+7. Reject memulai re-analysis jika quota tersedia; jika habis, rejection tetap disimpan dan case masuk ESCALATION_REQUIRED.
 8. Historical analysis tidak di-overwrite.
 9. Historical decision tidak dihapus.
 10. AI tidak dapat mengubah workflow state.
