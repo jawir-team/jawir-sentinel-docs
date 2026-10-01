@@ -613,7 +613,7 @@ exactly 1 active Executer
 segregation of duties valid
 ```
 
-Behavior:
+Behaviatau:
 
 ```text
 validate participant cardinality + SoD
@@ -668,7 +668,7 @@ Response:
 }
 ```
 
-Behavior:
+Behaviatau:
 
 ```text
 validate active participant
@@ -1650,7 +1650,7 @@ Safe metadata terkait escalation dapat mencakup:
 }
 ```
 
-or:
+atau:
 
 ```json
 {
