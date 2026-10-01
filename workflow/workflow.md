@@ -784,7 +784,19 @@ Audit CHECKER_REJECTED
 ↓
 CHECKING → AI_ANALYSIS
 ↓
-Trigger Re-analysis
+Check MAX_REANALYSIS
+
+if quota available:
+  COMMIT
+  ↓
+  Trigger Re-analysis after commit
+
+if quota exhausted:
+  Audit REANALYSIS_LIMIT_REACHED
+  AI_ANALYSIS → ESCALATION_REQUIRED
+  COMMIT
+  ↓
+  Do not trigger AI
 ```
 
 A reject dari satu Checker langsung menghentikan current checking round.
@@ -896,7 +908,19 @@ Audit SIGNER_REJECTED
 ↓
 SIGNING → AI_ANALYSIS
 ↓
-Trigger Re-analysis
+Check MAX_REANALYSIS
+
+if quota available:
+  COMMIT
+  ↓
+  Trigger Re-analysis after commit
+
+if quota exhausted:
+  Audit REANALYSIS_LIMIT_REACHED
+  AI_ANALYSIS → ESCALATION_REQUIRED
+  COMMIT
+  ↓
+  Do not trigger AI
 ```
 
 Setelah new analysis dibuat:
@@ -989,7 +1013,19 @@ Audit EXECUTION_BLOCKED
 ↓
 EXECUTION → AI_ANALYSIS
 ↓
-Trigger Re-analysis
+Check MAX_REANALYSIS
+
+if quota available:
+  COMMIT
+  ↓
+  Trigger Re-analysis after commit
+
+if quota exhausted:
+  Audit REANALYSIS_LIMIT_REACHED
+  AI_ANALYSIS → ESCALATION_REQUIRED
+  COMMIT
+  ↓
+  Do not trigger AI
 ```
 
 Execution blocker menjadi evidence untuk analysis version berikutnya.
@@ -1016,7 +1052,19 @@ Audit EXECUTION_FAILED
 ↓
 EXECUTION → AI_ANALYSIS
 ↓
-Trigger Re-analysis
+Check MAX_REANALYSIS
+
+if quota available:
+  COMMIT
+  ↓
+  Trigger Re-analysis after commit
+
+if quota exhausted:
+  Audit REANALYSIS_LIMIT_REACHED
+  AI_ANALYSIS → ESCALATION_REQUIRED
+  COMMIT
+  ↓
+  Do not trigger AI
 ```
 
 ---
@@ -1034,12 +1082,14 @@ EXECUTION_FAILED
 
 MVP tidak menyediakan generic/manual re-analysis action atau endpoint. Evidence baru tidak otomatis membuat analysis version baru; reviewer/executer menggunakan business action yang sesuai bila evidence tersebut mengubah decision context.
 
-Flow:
+Flow when quota is available:
 
 ```text
-New Feedback / Evidence
+Governed Feedback / Execution Result
 ↓
 AI_ANALYSIS
+↓
+COMMIT triggering business transaction
 ↓
 Build Current Context
 ↓
@@ -1049,9 +1099,26 @@ Generate New Analysis Version
 ↓
 Verify
 ↓
-Set cases.current_analysis_id
+Set cases.current_analysis_id only on success
 ↓
 CHECKING
+```
+
+Flow when quota is exhausted:
+
+```text
+Governed Feedback / Execution Result is persisted
+↓
+AI_ANALYSIS
+↓
+REANALYSIS_LIMIT_REACHED
+↓
+ESCALATION_REQUIRED
+↓
+COMMIT
+↓
+No new analysis version
+No AI call
 ```
 
 Analysis lama tidak dihapus.
