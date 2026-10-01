@@ -1452,6 +1452,7 @@ Response:
     "index_error": null,
     "index_attempt_id": "uuid",
     "index_started_at": "2026-10-01T09:13:00Z",
+    "index_recoverable": false,
     "indexed_at": "2026-10-01T09:14:00Z",
     "content": "Policy content...",
     "effective_from": "2026-10-01T00:00:00Z",
@@ -1461,6 +1462,17 @@ Response:
   }
 }
 ```
+
+---
+
+`index_recoverable` is a derived response field, not a database column:
+
+```text
+index_status = PROCESSING
+AND now() - index_started_at > POLICY_INDEX_LEASE_SECONDS
+```
+
+It allows ADMIN UI to offer a safe recovery action without duplicating backend lease logic.
 
 ---
 
