@@ -715,17 +715,17 @@ index_status
 
 Rules:
 
-- a policy version may become `ACTIVE` only when `index_status = READY`;
-- activation requires the target to be currently effective: `effective_from IS NULL OR effective_from <= now()` and `effective_until IS NULL OR effective_until > now()`;
-- when both effective timestamps exist, `effective_until > effective_from`;
-- `READY` requires `indexed_at IS NOT NULL` and `index_error IS NULL`;
-- `PROCESSING` requires `index_attempt_id` and `index_started_at`;
-- `FAILED` keeps the policy version `DRAFT` and stores a safe diagnostic summary in `index_error`;
-- the currently ACTIVE version remains ACTIVE while a newer DRAFT version is being indexed;
-- READY/FAILED finalization must match the currently claimed `index_attempt_id`;
-- a stale PROCESSING lease may be reclaimed with a new attempt id after `POLICY_INDEX_LEASE_SECONDS`;
-- MVP does not expose an API to edit DRAFT policy content after creation. A changed policy body is represented by a new version;
-- if content mutation is introduced later, it must delete derived chunks and reset `index_status = NOT_STARTED`, `indexed_at = NULL`, and `index_error = NULL`.
+- policy version hanya dapat menjadi `ACTIVE` ketika `index_status = READY`;
+- activation mensyaratkan target sedang effective: `effective_from IS NULL OR effective_from <= now()` dan `effective_until IS NULL OR effective_until > now()`;
+- jika kedua effective timestamp terisi, wajib `effective_until > effective_from`;
+- `READY` mensyaratkan `indexed_at IS NOT NULL` dan `index_error IS NULL`;
+- `PROCESSING` mensyaratkan `index_attempt_id` dan `index_started_at`;
+- `FAILED` mempertahankan policy version sebagai `DRAFT` dan menyimpan safe diagnostic summary di `index_error`;
+- ACTIVE version saat ini tetap ACTIVE selama DRAFT version yang lebih baru sedang di-index;
+- finalization READY/FAILED wajib cocok dengan `index_attempt_id` yang sedang memegang claim;
+- stale PROCESSING lease dapat di-reclaim menggunakan attempt id baru setelah `POLICY_INDEX_LEASE_SECONDS`;
+- MVP tidak menyediakan API untuk mengedit content DRAFT policy setelah dibuat. Perubahan policy body direpresentasikan sebagai version baru;
+- jika content mutation ditambahkan di masa depan, mutation tersebut wajib menghapus derived chunks dan me-reset `index_status = NOT_STARTED`, `indexed_at = NULL`, serta `index_error = NULL`.
 
 ---
 
@@ -1100,9 +1100,9 @@ Reference historis tidak berubah walaupun policy version berikutnya diaktifkan.
 
 Aturan lifecycle:
 
-- refs are persisted for COMPLETED analyses;
-- refs are also persisted for FAILED analyses when a schema-valid candidate existed and verifier returned FAIL;
-- malformed/unvalidated output must not create fabricated refs.
+- refs dipersist untuk analysis COMPLETED;
+- refs juga dipersist untuk analysis FAILED ketika ada schema-valid candidate dan verifier menghasilkan FAIL;
+- malformed/unvalidated output tidak boleh membuat fabricated refs.
 
 ---
 
@@ -1355,12 +1355,12 @@ INDEX(analysis_id)
 
 Rules:
 
-- the outbox row is inserted in the **same transaction** that creates the `GENERATING` analysis and transitions the case to `AI_ANALYSIS`;
-- dispatcher publishes a persistent RabbitMQ message with `message_id = outbox_events.id`;
-- `PUBLISHED` is set only after publisher confirm;
-- failure before confirmation leaves/retries the event as `PENDING`;
-- a crash after broker confirm but before PUBLISHED may cause duplicate delivery; worker/finalization must be idempotent;
-- published rows are retained for MVP; retention cleanup is deferred.
+- outbox row diinsert dalam **transaction yang sama** dengan pembuatan analysis `GENERATING` dan transition case ke `AI_ANALYSIS`;
+- dispatcher mem-publish persistent RabbitMQ message dengan `message_id = outbox_events.id`;
+- `PUBLISHED` hanya diset setelah publisher confirm;
+- failure sebelum confirmation mempertahankan/mengulang event sebagai `PENDING`;
+- crash setelah broker confirm tetapi sebelum PUBLISHED dapat menyebabkan duplicate delivery; worker/finalization wajib idempotent;
+- row yang sudah published dipertahankan pada MVP; retention cleanup ditunda.
 
 ---
 
@@ -1527,9 +1527,9 @@ Invariant aplikasi:
 - jika `policy_version_id` tidak NULL, version harus belong ke `policy_id`;
 - jangan membuat fake `case_id` untuk policy event;
 - `system_role = ADMIN` adalah authorization attribute, bukan workflow `actor_role`;
-- `AI_ANALYSIS_FAILED.metadata.failure_type` is one of `VERIFIER_FAIL` or `TECHNICAL_RETRY_EXHAUSTED`;
-- `REANALYSIS_LIMIT_REACHED.metadata` stores at least `latest_analysis_version` and `max_reanalysis`;
-- escalation cause uses audit metadata; no additional case escalation-reason column is required for MVP;
+- `AI_ANALYSIS_FAILED.metadata.failure_type` berisi salah satu dari `VERIFIER_FAIL` atau `TECHNICAL_RETRY_EXHAUSTED`;
+- `REANALYSIS_LIMIT_REACHED.metadata` minimal menyimpan `latest_analysis_version` dan `max_reanalysis`;
+- escalation cause menggunakan audit metadata; MVP tidak memerlukan case escalation-reason column tambahan;
 - audit event tidak memiliki `updated_at`;
 - application API tidak menyediakan update/delete audit event.
 
@@ -1619,7 +1619,7 @@ Request analysis baru disiapkan secara atomic:
 5. Commit
 ```
 
-Worker completion dilakukan pada transaction berikutnya. Hanya COMPLETED analysis yang berhasil diverifikasi yang mengubah `cases.current_analysis_id` dan mempersist final provenance/audit completion. FAILED analysis tidak pernah menjadi current.
+Worker completion dilakukan pada transaction berikutnya. Hanya analysis COMPLETED yang berhasil diverifikasi yang mengubah `cases.current_analysis_id` dan mempersist final provenance/audit completion. Analysis FAILED tidak pernah menjadi current.
 
 Worker claim/finalization wajib cocok dengan `worker_attempt_id` agar superseded consumer yang terlambat tidak dapat menimpa delivery claim yang lebih baru.
 
@@ -1640,7 +1640,7 @@ Analysis v2 created
 
 Risk Checker v1 decision tetap tersimpan tetapi tidak valid untuk v2.
 
-Query current approval harus selalu scope ke:
+Query approval saat ini harus selalu di-scope ke:
 
 ```text
 cases.current_analysis_id
@@ -1700,7 +1700,7 @@ Build deterministic chunks
 Generate all embeddings
 ```
 
-Jika indexing gagal dan attempt masih memiliki current `index_attempt_id`:
+Jika indexing gagal dan attempt masih memiliki `index_attempt_id` saat ini:
 
 ```text
 BEGIN
@@ -1715,7 +1715,7 @@ Current ACTIVE version remains unchanged.
 Target remains DRAFT.
 ```
 
-Jika indexing berhasil dan attempt masih memiliki current `index_attempt_id`:
+Jika indexing berhasil dan attempt masih memiliki `index_attempt_id` saat ini:
 
 ```text
 BEGIN
@@ -1801,7 +1801,7 @@ Critical FK menggunakan:
 ON DELETE RESTRICT
 ```
 
-jika deletion dapat merusak historical audit context.
+jika deletion dapat merusak konteks audit historis.
 
 `CASCADE` digunakan hanya untuk child yang tidak bermakna tanpa parent utama, seperti:
 
@@ -1886,7 +1886,7 @@ Approval request:
 request.analysis_id
 ```
 
-must equal:
+harus sama dengan:
 
 ```text
 cases.current_analysis_id
