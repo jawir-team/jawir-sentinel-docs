@@ -1579,8 +1579,55 @@ ai_analyses(case_id, version DESC)
 policies(domain, case_type_id)
 policy_versions(policy_id, status)
 policy_chunks(policy_version_id)
-vector index(policy_chunks.embedding)
+HNSW vector index(policy_chunks.embedding vector_cosine_ops)
 ```
+
+MVP authoritative retrieval filter:
+
+```text
+policy_versions.status = ACTIVE
+
+AND
+effective_from <= now() OR effective_from IS NULL
+
+AND
+effective_until > now() OR effective_until IS NULL
+
+AND
+(
+  policies.case_type_id = requested_case_type_id
+  OR policies.case_type_id IS NULL
+)
+```
+
+`policies.domain` bukan hard filter pada MVP.
+
+Similarity contract:
+
+```text
+query embedding = gemini-embedding-001 / RETRIEVAL_QUERY / 768
+distance        = cosine
+top_k           = 8
+threshold       = none
+reranker        = none
+```
+
+Retriever mengembalikan provenance minimum:
+
+```text
+policy_id
+policy_code
+policy_title
+policy_version_id
+version
+section
+chunk_id
+chunk_index
+content
+distance / relevance_score
+```
+
+Policy status interpretation seperti `NO_POLICY_FOUND`, `INSUFFICIENT_EVIDENCE`, dan `POLICY_CONFLICT` bukan responsibility SQL/vector retriever.
 
 ---
 
