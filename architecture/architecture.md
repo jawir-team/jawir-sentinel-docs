@@ -911,20 +911,48 @@ PASS_WITH_WARNING
 then:
 
 ```text
-Persist Analysis
+Persist complete schema-valid Analysis
 Persist Policy References
 Persist Evidence References
 Update current_analysis_id
 Transition → CHECKING
 ```
 
-If:
+If verifier returns:
 
 ```text
 FAIL
 ```
 
-analysis does not enter Checker review.
+then:
+
+```text
+Persist analysis status = FAILED
+Preserve schema-valid analysis output that was actually produced
+Persist verification_status = FAIL
+Persist verification_notes
+Do not update current_analysis_id
+Do not enter Checker review
+```
+
+If analysis fails before schema-valid output exists:
+
+```text
+Persist analysis status = FAILED
+Leave unavailable result fields NULL
+Do not fabricate policy_status / quality / uncertainty / verification result
+Do not update current_analysis_id
+Do not enter Checker review
+```
+
+Persistence meaning:
+
+```text
+NULL = not produced
+[] / {} = valid produced output that is empty
+```
+
+Raw malformed or unvalidated model output is never promoted into structured analysis fields.
 
 ---
 
@@ -1922,10 +1950,12 @@ Invariant berikut harus selalu benar:
 17. DONE only follows successful execution.
 18. BLOCKED/FAILED returns workflow to AI_ANALYSIS.
 19. AI failure does not delete or reset the case.
-20. Case core data and participant set are immutable after submission.
-21. In-flight participant replacement is not supported; close + new case is required.
-22. Maker is the case creator and its assignment is immutable.
-23. Docs define the contract; FE and BE implement it.
+20. Analysis result NULL means not produced; valid empty collections are preserved as empty JSON.
+21. Invalid/unvalidated model output is never persisted as structured analysis data.
+22. Case core data and participant set are immutable after submission.
+23. In-flight participant replacement is not supported; close + new case is required.
+24. Maker is the case creator and its assignment is immutable.
+25. Docs define the contract; FE and BE implement it.
 ```
 
 ---
