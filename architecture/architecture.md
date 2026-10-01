@@ -609,8 +609,25 @@ Vertex AI Gemini
 Embedding provider:
 
 ```text
-Vertex AI Embedding Model
+Vertex AI
+model                  = gemini-embedding-001
+output dimensionality  = 768
+document task type     = RETRIEVAL_DOCUMENT
+query task type        = RETRIEVAL_QUERY
+distance               = cosine
+index                   = HNSW
 ```
+
+Embedding contract:
+
+- policy chunks selalu di-embed dengan `RETRIEVAL_DOCUMENT`;
+- retrieval query selalu di-embed dengan `RETRIEVAL_QUERY`;
+- `SEMANTIC_SIMILARITY` tidak digunakan untuk policy retrieval;
+- output vector disimpan sebagai PostgreSQL `VECTOR(768)`;
+- HNSW menggunakan `vector_cosine_ops`;
+- default HNSW parameters dipakai pada MVP;
+- `POLICY_RETRIEVAL_TOP_K=8`;
+- model/dimension/task type dianggap bagian dari retrieval contract dan perubahan di kemudian hari membutuhkan re-embedding seluruh derived policy chunks.
 
 ---
 
@@ -641,7 +658,16 @@ Policy retrieval menggunakan:
 ```text
 PostgreSQL
 +
-pgvector
+pgvector VECTOR(768)
++
+HNSW cosine index
+```
+
+Embedding configuration:
+
+```text
+policy chunk → gemini-embedding-001 / RETRIEVAL_DOCUMENT / 768
+query        → gemini-embedding-001 / RETRIEVAL_QUERY    / 768
 ```
 
 Flow:
