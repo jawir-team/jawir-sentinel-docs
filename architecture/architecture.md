@@ -682,7 +682,7 @@ Context Builder mengumpulkan:
 Current Case
 Current Evidence
 Current Workflow State
-Current ACTIVE Policy
+Current ACTIVE + READY Policy
 Latest Reviewer Feedback
 Latest Execution Feedback
 Previous Analysis Summary
@@ -737,6 +737,9 @@ MVP candidate policy rule:
 
 ```text
 policy_versions.status = ACTIVE
+
+AND
+policy_versions.index_status = READY
 
 AND
 effective_from <= now() OR effective_from IS NULL
