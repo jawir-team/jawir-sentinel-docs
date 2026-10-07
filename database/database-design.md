@@ -2157,9 +2157,11 @@ Recommended migration sequence:
 000015_create_decisions
 000016_create_executions
 000017_create_audit_events
-000018_create_indexes
-000019_seed_master_data
+000018_create_outbox_events
+000019_create_indexes
 ```
+
+Seed data ditangani pada BE-048.
 
 ---
 
